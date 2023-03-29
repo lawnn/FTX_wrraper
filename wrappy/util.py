@@ -1,6 +1,8 @@
 import os
 import numpy as np
 import pandas as pd
+import polars as pl
+from datetime import datetime, timedelta
 from matplotlib import pyplot as plt
 
 
@@ -120,6 +122,29 @@ def resample_ohlc(org_df: pd.DataFrame, timeframe):
     df['high'] = df['high'].fillna(df['close'])
     df['low'] = df['low'].fillna(df['close'])
     return df
+
+def df_list(df: pl.DataFrame, start_date: datetime, interval: int, quantity: int, dt_col: str="") -> list:
+    """
+    Args:
+        df (pl.DataFrame): _description_
+        start_date (pl.Datetime): _description_
+        interval (int): x日毎
+        quantity (int): 必要な数
+        dt_col (str, optional): daetime カラム名
+
+    Returns:
+        list: _description_
+    """
+    # 日付リストを生成する
+    date_list = [start_date + timedelta(days=interval*i)
+                for i in range(quantity)
+                if start_date + timedelta(days=interval*i) <= df[dt_col].max()]
+
+    # DataFrameリストを生成する
+    return [df.filter((pl.col(dt_col).ge(start_date)) & (pl.col(dt_col).lt(end_date)))
+            for start_date, end_date in [(date_list[i], date_list[i+1])
+                for i in range(0, len(date_list)-1, interval)] + ([ (date_list[-2], date_list[-1]) ]
+                    if len(date_list) % interval != 1 else [])]
 
 def trades_to_historical(df: pd.dataframe, period: str = '1S'):
     if 'side' in df.columns:
