@@ -2,8 +2,10 @@ import os
 import numpy as np
 import pandas as pd
 import polars as pl
+import optuna
 from datetime import datetime, timedelta
 from matplotlib import pyplot as plt
+from abc import ABCMeta, abstractmethod
 
 
 def plot_corrcoef(arr1, arr2, output_dir: str = None, title: str = None, x: str = 'indicator',
@@ -184,3 +186,22 @@ def trades_to_historical(df: pd.dataframe, period: str = '1S'):
                               ], axis=1)
         df_ohlcv.columns = ['open', 'high', 'low', 'close', 'volume']
     return df_ohlcv
+
+class Objective(metaclass=ABCMeta):
+    def __init__(self, df: any, params: dict):
+        if isinstance(df, list):
+            self.df_list = df
+        else:
+            self.df = df
+        self.params = params
+
+    def __call__(self, trial):
+        # ハイパーパラメータの設定
+        config = {}
+        for key, value in self.params.items():
+            config[key] = trial.suggest_int(key, value[0], value[1], value[2])
+        return self.indicator(**config)
+
+    @abstractmethod
+    def indicator(self, **kwargs):
+        raise NotImplementedError
