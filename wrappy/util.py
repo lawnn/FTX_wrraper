@@ -19,7 +19,7 @@ def simple_regression(x: np.ndarray, y: np.ndarray, plot_graph=False, title: str
         return r2
 
     N = len(x)
-    p, cov = np.polyfit(x, y, 1, cov=True)
+    p, cov, _ = np.polyfit(x, y, 1, cov=True)
     a = p[0]
     b = p[1]
     sigma_a = np.sqrt(cov[0, 0])
@@ -188,7 +188,7 @@ def df_list(df: pl.DataFrame, start_date: datetime, interval: int, quantity: int
                 for i in range(0, len(date_list)-1, interval)] + ([ (date_list[-2], date_list[-1]) ]
                     if len(date_list) % interval != 1 else [])]
 
-def trades_to_historical(df: pd.dataframe, period: str = '1S'):
+def trades_to_historical(df: pd.DataFrame, period: str = '1S'):
     if 'side' in df.columns:
         df['side'] = df['side'].mask(df['side'] == 'Buy', 'buy')
         df['side'] = df['side'].mask(df['side'] == 'BUY', 'buy')
