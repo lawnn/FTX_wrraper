@@ -2,7 +2,6 @@ import os
 import numpy as np
 import pandas as pd
 import polars as pl
-import optuna
 from datetime import datetime, timedelta
 from matplotlib import pyplot as plt
 from abc import ABCMeta, abstractmethod
@@ -240,8 +239,8 @@ class Objective(metaclass=ABCMeta):
         config = {}
         for key, value in self.params.items():
             config[key] = trial.suggest_int(key, value[0], value[1], value[2])
-        return self.indicator(**config)
+        return self.optimization(**config)
 
     @abstractmethod
-    def indicator(self, **kwargs):
+    def optimization(self, **kwargs):
         raise NotImplementedError
