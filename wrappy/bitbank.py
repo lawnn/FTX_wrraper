@@ -67,3 +67,6 @@ class BitBank(BotBase):
             self.log_error("API request failed in limit_order.")
             self.log_error(format_exc())
             raise e
+
+    async def exchange_status(self):
+        return await self._requests("GET", url="/spot/status")
