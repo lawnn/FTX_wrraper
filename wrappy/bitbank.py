@@ -41,6 +41,11 @@ class BitBank(BotBase):
         return await self._requests('POST', url="/user/spot/order", data=request)
 
     async def market_order(self, side: str, size: float):
+        """
+        成行注文です
+        :param side: buy or sell
+        :param size: 数量
+        """
         try:
             return await self._replace_order(side, size, "market")
         except Exception as e:
@@ -49,6 +54,13 @@ class BitBank(BotBase):
             raise e
 
     async def limit_order(self, side: str, size: float, price: any, post_only: bool = False):
+        """
+        指値注文です
+        :param side: buy or sell
+        :param size: 数量
+        :param price: 値段
+        :param post_only: 必ずMakerの注文にするか否か Takerの注文の場合発注されません True or False
+        """
         try:
             return await self._replace_order(side=side, size=size, order_type="limit", price=price, post_only=post_only)
         except Exception as e:
