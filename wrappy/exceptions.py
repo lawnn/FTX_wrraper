@@ -36,6 +36,7 @@ class APIException(Exception):
     """
     def __init__(self, message):
         self.message = message
+        self.status = message.status
 
     def __str__(self):
         return f'APIException: {self.message}'
