@@ -69,4 +69,9 @@ class BitBank(BotBase):
             raise e
 
     async def exchange_status(self):
-        return await self._requests("GET", url="/spot/status")
+        try:
+            return await self._requests("GET", url="/spot/status")
+        except Exception as e:
+            self.log_error("API request failed in exchange status")
+            self.log_error(format_exc())
+            raise e
