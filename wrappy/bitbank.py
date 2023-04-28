@@ -17,17 +17,15 @@ class BitBank(BotBase):
         async with pybotters.Client(apis=self.key, base_url='https://api.bitbank.cc/v1') as client:
             response = await client.request(method, url=url, params=params, data=data)
             if not str(response.status).startswith('2'):
+                if str(response.status).startswith("429"):
+                    self.log_error("429 Too Many Requests")
+                    await asyncio.sleep(1)
                 self.statusNotify(f"{response.status} error")
                 raise APIException(response)
             data = await response.json()
 
             if data["success"] == 0:
-                # self.statusNotify(f"[Error code] {data['data']['code']}\n" +
-                #     "https://github.com/bitbankinc/bitbank-api-docs/blob/master/errors_JP.md")
-                # self.log_error(f"[Error code] {data['data']['code']}\n" +
-                #     f"{format_exc()}" +
-                #     "https://github.com/bitbankinc/bitbank-api-docs/blob/master/errors_JP.md")
-                raise RequestException(data['data']['code'])
+                raise RequestException(f"{data['data']['code']} error")
             else:
                 return data["data"]
 
@@ -167,7 +165,7 @@ class BitBank(BotBase):
                     position = Decimal(balance["assets"][i]["free_amount"])
                     break
 
-            remaining_amount = sum([Decimal(order["remaining_amount"]) + Decimal(order["executed_amount"])
+            remaining_amount = sum([Decimal(order["remaining_amount"])
                                     for order in open_orders["orders"]
                                     if order["side"] == "sell"])
 
@@ -184,7 +182,7 @@ class BitBank(BotBase):
     async def cancel_and_fetch_position(self) -> float:
         """
         ポジション数を取得します
-        実行するとAPIを2回消費します
+        実行するとAPIを3回消費します
         注文をキャンセルしつつポジション数を取得したいときに使います
         """
         failed_count = 0
@@ -238,6 +236,7 @@ class BitBank(BotBase):
     async def cancel_all_orders(self):
         """
         全ての注文をキャンセルします
+        APIを2回消費します
         """
         failed_count = 0
         try:
