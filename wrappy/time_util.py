@@ -46,4 +46,4 @@ def now_utc_str(date_format="%Y-%m-%d %H:%M:%S"):
     現在時刻をUTC時間の文字型で出力します
     :return:
     """
-    return datetime.datetime.now(datetime.timezone.utc).strftime(date_format)
+    return datetime.datetime.utcnow().strftime(date_format)
