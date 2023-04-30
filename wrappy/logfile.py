@@ -1,10 +1,8 @@
 import os
-import json
 import csv
-from .time_util import now_jst_str
 
 
-class LogBase(object):
+class LogBase:
     """
     ログファイルの基底クラス.
     """
@@ -26,10 +24,26 @@ class LogBase(object):
         self.with_header = with_header
         self.delimiter = delimiter
         self.line_terminator = line_terminator
-        self.file = None
-        self.writer = None
         self.columns = {}
         self.default_values = {}
+        self.file = None
+        self.writer = None
+
+    def __enter__(self):
+        """
+        withブロックに入ったときに呼ばれる処理です.
+        ログファイルをオープンし、writerを作成します.
+        """
+        self._initialize()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """
+        withブロックから出たときに呼ばれる処理です.
+        ログファイルをクローズします.
+        """
+        if self.file is not None:
+            self.file.close()
 
     def open(self):
         """
@@ -45,6 +59,39 @@ class LogBase(object):
         if self.file is not None:
             self.file.close()
 
+    def _initialize(self):
+        """
+        初期化処理を行います.
+        """
+        if os.path.exists(self.full_path) and self.as_new:
+            os.remove(self.full_path)
+
+        is_new_file = not os.path.exists(self.full_path)
+        self.file = open(self.full_path, mode="a", encoding=self.encoding, newline="")
+        if is_new_file:
+            self.writer = csv.writer(self.file, lineterminator=self.line_terminator)
+            if self.with_header:
+                self._write_header()
+
+    def _write_header(self):
+        """
+        ヘッダを書き込みます.
+        """
+        if self.writer is None:
+            raise Exception("Writer is not initialized.")
+        headers = self.get_headers()
+        self.writer.writerow(headers)
+
+    def get_headers(self):
+        """
+        カラム名のリストを返します.
+        :return: カラム名のリスト.
+        """
+        headers = []
+        for k in self.columns.keys():
+            headers.append(k)
+        return headers
+
     def write_row(self, row: list):
         """
         リスト形式で行を書き込みます.
@@ -56,17 +103,13 @@ class LogBase(object):
 
     def write_row_by_dict(self, row_dict: dict):
         """
-        辞書形式で行を書き込みます. 辞書内にないカラムは空文字列とします.
+        辞書形式で行を書き込みます. 辞書内にないカラ
+        ムは空文字列とします.
         :param row_dict: 行データ.
         """
         if self.writer is None:
             raise Exception("Writer is not initialized.")
-        row = []
-        for item in self.get_headers():
-            if item in row_dict and row_dict[item] is not None:
-                row.append(row_dict[item])
-            else:
-                row.append("")
+        row = [row_dict.get(key, '') for key in self.get_headers()]
         self.write_row(row)
 
     def get_full_path(self):
@@ -76,53 +119,6 @@ class LogBase(object):
         """
         return self.full_path
 
-    def get_headers(self):
-        """
-        ヘッダーを取得.
-        :return: ヘッダー.
-        """
-        return self.columns.keys()
-
-    def get_columns(self):
-        u"""
-        カラムを取得.
-        :return: カラム.
-        """
-        return self.columns
-
-    def get_columns_num(self):
-        """
-        カラムの数を取得します.
-        :return: カラム数.
-        """
-        return len(self.get_columns())
-
-    def get_new_record(self):
-        """
-        新しいレコードを取得します.
-        デフォルト値が設定されている場合、デフォルト値を入れます.
-        :return: 新しいレコード.
-        """
-        record = {}
-        for item in self.get_headers():
-            record[item] = self.default_values[item] if item in self.default_values else None
-        return record
-
-    def _initialize(self):
-        """
-        ログファイルを初期化します.
-        必要に応じてヘッダー行をつけます.
-        """
-        if self.as_new or not os.path.isfile(self.full_path):
-            self.file = open(self.full_path, "w", encoding=self.encoding)
-            if self.with_header:
-                self.file.write(self.delimiter.join(self.get_headers()) + self.line_terminator)
-            else:
-                self.file.write("")
-        else:
-            self.file = open(self.full_path, "a", encoding=self.encoding)
-
-
 class OrderHistory(LogBase):
     """
     注文履歴ログ.
@@ -131,60 +127,3 @@ class OrderHistory(LogBase):
     def __init__(self, full_path, columns):
         super().__init__(full_path, as_new=False, encoding="shift_jis", with_header=True)
         self.columns = columns
-
-
-class History:
-    def __init__(self, path, columns):
-        self.config = json.load(open(path, 'r', encoding="utf-8"))
-        try:
-            self.exchange_name = self.config["exchange_name"]
-        except KeyError:
-            self.exchange_name = 'Exchange'
-            pass
-        try:
-            self.bot_name = self.config["bot_name"]
-        except KeyError:
-            self.bot_name = 'Bot'
-
-        # 発注履歴を保存するファイル用のパラメータ.
-        self.order_history_file_class = OrderHistory
-        try:
-            self.order_history_dir = self.config["log_dir"]
-        except KeyError:
-            self.order_history_dir = 'log'
-
-        if not os.path.exists(self.order_history_dir):
-            os.mkdir(self.order_history_dir)
-
-        self.order_history_file_name_base = f"{self.exchange_name}_{self.bot_name}_order_history"
-        self.order_history_files = {}
-        self.order_history_encoding = "shift_jis"
-        self.columns = columns
-
-    def write_order_history(self, order_history):
-        """
-        発注履歴を出力します.
-        :param order_history: ログデータ.
-        """
-        self.get_or_create_order_history_file().write_row_by_dict(order_history)
-
-    def get_or_create_order_history_file(self):
-        """
-        現在時刻を元に発注履歴ファイルを取得します.
-        ファイルが存在しない場合、新規で作成します.
-        :return: 発注履歴ファイル.
-        """
-        today_str = now_jst_str("%y%m%d")
-        order_history_file_name = self.order_history_file_name_base + f"_{today_str}.csv"
-        full_path = self.order_history_dir + "/" + order_history_file_name
-        if today_str not in self.order_history_files:
-            self.order_history_files[today_str] = self.order_history_file_class(full_path, self.columns)
-            self.order_history_files[today_str].open()
-        return self.order_history_files[today_str]
-
-    def close_order_history_files(self):
-        """
-        発注履歴ファイルをクローズします.
-        """
-        for order_history_file in self.order_history_files.values():
-            order_history_file.close()
