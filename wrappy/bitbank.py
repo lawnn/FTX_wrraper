@@ -1,8 +1,11 @@
 import asyncio
 import pybotters
+import time
+from .time_util import now_jst, now_jst_str
 from decimal import Decimal
 from traceback import format_exc
 from .base import BotBase
+from .logfile import OrderHistory
 from .exceptions import APIException, RequestException
 
 
@@ -11,7 +14,112 @@ class BitBank(BotBase):
         super().__init__(config)
         self.symbol = symbol
         self.key = {"bitbank": self.config["bitbank"]}
+        self.stop_flag = False
         self.retry_count = 3
+        # 発注履歴ファイルを保存するファイルのパラメータ
+        try:
+            self.order_history_dir = self.config["log_dir"]
+        except KeyError:
+            self.order_history_dir = 'log'
+        self.columns = {
+            "order_no": "オーダーNo.",
+            "order_id": "オーダーID",
+            "timestamp": "オーダー時刻",
+            "order_kind": "オーダー種別",
+            "size": "実際にオーダーしたサイズ",
+            "price": "実際にオーダーした価格",
+            "current_position": "現在ポジション",
+        }
+        self.order_history_file_name_base = f"{self.exchange_name}_{self.bot_name}_order_history"
+        self.order_history_files = {}
+        self.order_history_file_class = OrderHistory
+
+
+    async def start(self):
+        """
+        ボットを起動します.
+        """
+        await self._run_logic()
+        self.log_info("Bot started.")
+
+
+    async def stop(self):
+        """
+        ボットを停止します.
+        """
+        self.stop_flag = True
+        self.log_info("Logic threads has been stopped.")
+        await self._cancel_and_liquidate()
+        self.close_order_history_files()
+
+
+    async def _run_logic(self):
+        """
+        ロジック部分です. 子クラスで実装します.
+        """
+        raise NotImplementedError()
+
+
+    def write_order_history(self, order_history):
+        """
+        発注履歴を出力します.
+        :param order_history: ログデータ.
+        """
+        self.get_or_create_order_history_file().write_row_by_dict(order_history)
+
+
+    def get_or_create_order_history_file(self):
+        """
+        現在時刻を元に発注履歴ファイルを取得します.
+        ファイルが存在しない場合、新規で作成します.
+        :return: 発注履歴ファイル.
+        """
+        today_str = now_jst_str("%y%m%d")
+        order_history_file_name = self.order_history_file_name_base + f"_{today_str}.csv"
+        full_path = self.order_history_dir + "/" + order_history_file_name
+        if today_str not in self.order_history_files:
+            self.order_history_files[today_str] = self.order_history_file_class(full_path, self.columns)
+            self.order_history_files[today_str].open()
+        return self.order_history_files[today_str]
+
+
+    def close_order_history_files(self):
+        """
+        発注履歴ファイルをクローズします.
+        """
+        for order_history_file in self.order_history_files.values():
+            order_history_file.close()
+
+
+    async def _cancel_and_liquidate(self):
+        """
+        全ての注文をキャンセルした後、ポジションを成行で反対売買してクローズします.
+        """
+        self.log_debug("_cancel_and_liquidate start.")
+        self.log_info("Canceling all open orders.")
+        # 全てキャンセル.
+        await self.cancel_all_orders()
+        time.sleep(5)
+        # 5秒置いてさらに全てキャンセル.
+        await self.cancel_all_orders()
+        time.sleep(5)
+        position = await self.fetch_my_position()
+        if position >= 0.0001:
+            self.log_info(f"Liquidating current position {position} lot.")
+            order_datetime = now_jst()
+            order = await self.market_order("sell", position)
+            order_history = {
+                "order_no": "",
+                "order_id": order["order_id"],
+                "timestamp": order_datetime.timestamp(),
+                "order_kind": "Bot Stop Liquidation",
+                "size": position,
+                "price": 0,
+                "current_position": 0
+            }
+            self.write_order_history(order_history)
+        self.log_debug("_cancel_and_liquidate end.")
+
 
     async def _requests(self, method: str, url: str, params=None, data=None):
         async with pybotters.Client(apis=self.key, base_url='https://api.bitbank.cc/v1') as client:
@@ -151,7 +259,7 @@ class BitBank(BotBase):
     async def fetch_my_position(self) -> float:
         """
         ポジション数を取得します
-        実行するとAPIを一度に2回消費します
+        実行すると取得系APIを一度に2回消費します
         """
         failed_count = 0
         try:
@@ -182,7 +290,7 @@ class BitBank(BotBase):
     async def cancel_and_fetch_position(self) -> float:
         """
         ポジション数を取得します
-        実行するとAPIを3回消費します
+        実行すると取得系APIを2回,注文系を1回消費します
         注文をキャンセルしつつポジション数を取得したいときに使います
         """
         failed_count = 0
