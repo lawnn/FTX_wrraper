@@ -137,6 +137,7 @@ class BitBank(BotBase):
             else:
                 return data["data"]
 
+
     async def _replace_order(self, side: str, size: float, order_type: str, price: any = None, post_only: bool = False):
         request = {
             "pair": self.symbol,
@@ -151,6 +152,7 @@ class BitBank(BotBase):
 
         return await self._requests('POST', url="/user/spot/order", data=request)
 
+
     async def fetch_balance(self) -> dict:
         """
         口座情報を取得します
@@ -161,6 +163,7 @@ class BitBank(BotBase):
             self.log_error("API request failed in market_order.")
             self.log_error(format_exc())
             raise e
+
 
     async def market_order(self, side: str, size: float) -> dict:
         """
@@ -174,6 +177,7 @@ class BitBank(BotBase):
             self.log_error("API request failed in market_order.")
             self.log_error(format_exc())
             raise e
+
 
     async def limit_order(self, side: str, size: float, price: any, post_only: bool = False) -> dict:
         """
@@ -190,6 +194,7 @@ class BitBank(BotBase):
             self.log_error(format_exc())
             raise e
 
+
     async def _fetch_active_order(self) -> dict:
         """
         注文中の情報を取得します
@@ -200,6 +205,7 @@ class BitBank(BotBase):
             self.log_error("API request failed in fetch active order.")
             self.log_error(format_exc())
             raise e
+
 
     async def fetch_open_orders(self) -> list:
         """
@@ -221,6 +227,7 @@ class BitBank(BotBase):
                 raise e
             await asyncio.sleep(0.2)
 
+
     async def _fetch_order_info(self, order_id: int) -> dict:
         """
         注文の情報を取得します(単品)
@@ -232,6 +239,7 @@ class BitBank(BotBase):
             self.log_error("API request failed in fetch order info.")
             self.log_error(format_exc())
             raise e
+
 
     async def _fetch_orders_info(self, order_ids: list) -> dict:
         """
@@ -245,6 +253,7 @@ class BitBank(BotBase):
             self.log_error(format_exc())
             raise e
 
+
     async def fetch_trades_history(self) -> dict:
         """
         自分の約定履歴を取得します
@@ -255,6 +264,7 @@ class BitBank(BotBase):
             self.log_error("API request failed in fetch orders info.")
             self.log_error(format_exc())
             raise e
+
 
     async def fetch_my_position(self) -> float:
         """
@@ -287,6 +297,7 @@ class BitBank(BotBase):
                 raise e
             await asyncio.sleep(0.2)
 
+
     async def cancel_and_fetch_position(self) -> float:
         """
         ポジション数を取得します
@@ -311,6 +322,7 @@ class BitBank(BotBase):
                 raise e
             await asyncio.sleep(0.2)
 
+
     async def _cancel_order(self, order_id: int) -> any:
         """
         単品の注文をキャンセルします
@@ -324,6 +336,7 @@ class BitBank(BotBase):
                 raise e
         except RequestException as e:
             raise e
+
 
     async def _cancel_any_orders(self, order_ids: list) -> any:
         """
@@ -340,6 +353,7 @@ class BitBank(BotBase):
                 raise e
         except RequestException as e:
             raise e
+
 
     async def cancel_all_orders(self):
         """
@@ -360,6 +374,7 @@ class BitBank(BotBase):
                 self.logger.exception(format_exc())
                 raise e
             await asyncio.sleep(0.2)
+
 
     async def exchange_status(self) -> dict:
         """
