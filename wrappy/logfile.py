@@ -1,7 +1,7 @@
 import os
 import json
 import csv
-from datetime import datetime, timezone, timedelta
+import time_util
 
 
 class LogBase(object):
@@ -159,26 +159,7 @@ class History:
         self.order_history_file_name_base = f"{self.exchange_name}_{self.bot_name}_order_history"
         self.order_history_files = {}
         self.order_history_encoding = "shift_jis"
-        self.JST = timezone(timedelta(hours=9), 'JST')
-        self.GMT = timezone(timedelta(hours=0), 'GMT')
         self.columns = columns
-
-    def now_jst(self):
-        """
-        現在時刻をJSTで取得.
-        :return: datetime.
-        """
-        return datetime.now(self.JST)
-
-    def now_jst_str(self, date_format="%Y-%m-%d %H:%M:%S"):
-        return self.now_jst().strftime(date_format)
-
-    def now_gmt(self):
-        """
-        現在時刻をGMTで取得.
-        :return: datetime
-        """
-        return datetime.now(self.GMT)
 
     def write_order_history(self, order_history):
         """
@@ -193,7 +174,7 @@ class History:
         ファイルが存在しない場合、新規で作成します.
         :return: 発注履歴ファイル.
         """
-        today_str = self.now_jst_str("%y%m%d")
+        today_str = time_util.now_jst_str("%y%m%d")
         order_history_file_name = self.order_history_file_name_base + f"_{today_str}.csv"
         full_path = self.order_history_dir + "/" + order_history_file_name
         if today_str not in self.order_history_files:
