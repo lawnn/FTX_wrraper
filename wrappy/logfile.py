@@ -1,7 +1,7 @@
 import os
 import json
 import csv
-import time_util
+from .time_util import now_jst_str
 
 
 class LogBase(object):
@@ -174,7 +174,7 @@ class History:
         ファイルが存在しない場合、新規で作成します.
         :return: 発注履歴ファイル.
         """
-        today_str = time_util.now_jst_str("%y%m%d")
+        today_str = now_jst_str("%y%m%d")
         order_history_file_name = self.order_history_file_name_base + f"_{today_str}.csv"
         full_path = self.order_history_dir + "/" + order_history_file_name
         if today_str not in self.order_history_files:
