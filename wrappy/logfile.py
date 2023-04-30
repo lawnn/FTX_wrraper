@@ -82,16 +82,6 @@ class LogBase:
         headers = self.get_headers()
         self.writer.writerow(headers)
 
-    def get_headers(self):
-        """
-        カラム名のリストを返します.
-        :return: カラム名のリスト.
-        """
-        headers = []
-        for k in self.columns.keys():
-            headers.append(k)
-        return headers
-
     def write_row(self, row: list):
         """
         リスト形式で行を書き込みます.
@@ -118,6 +108,36 @@ class LogBase:
         :return: ログファイルのフルパス.
         """
         return self.full_path
+
+    def get_headers(self):
+        """
+        ヘッダーを取得.
+        :return: ヘッダー.
+        """
+        return self.columns.keys()
+
+    def get_columns(self):
+        """
+        カラムを取得.
+        :return: カラム.
+        """
+        return self.columns
+
+    def get_columns_num(self):
+        """
+        カラムの数を取得します.
+        :return: カラム数.
+        """
+        return len(self.get_columns())
+
+    def get_new_record(self):
+        """
+        新しいレコードを取得します.
+        デフォルト値が設定されている場合、デフォルト値を入れます.
+        :return: 新しいレコード.
+        """
+        return {item: self.default_values[item] if item in self.default_values else None for item in self.get_headers()}
+
 
 class OrderHistory(LogBase):
     """
