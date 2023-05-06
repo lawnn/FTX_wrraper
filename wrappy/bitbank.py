@@ -12,9 +12,13 @@ from .exceptions import APIException, RequestException
 class BitBank(BotBase):
     def __init__(self, config: str, symbol: str):
         super().__init__(config)
+        # 通貨ペア
         self.symbol = symbol
+        # APIを呼ぶ回数
         self.total_api_call_count = 0
+        # 今呼んでいるAPI key _requestメソッドでカウントしています.
         self.current_key_index = 0
+        # API keyの設定
         try:
             self.keys = self.config["bitbank_keys"]
             self.key = {"bitbank": self.keys[self.current_key_index]}
@@ -23,6 +27,7 @@ class BitBank(BotBase):
             self.key = {"bitbank": self.config["bitbank"]}
             self.check_keys = False
         self.stop_flag = False
+        # 何かしらのエラーがでたときに繰り返す回数
         self.retry_count = 3
         # 発注履歴ファイルを保存するファイルのパラメータ
         try:
