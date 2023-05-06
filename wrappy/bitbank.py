@@ -13,7 +13,15 @@ class BitBank(BotBase):
     def __init__(self, config: str, symbol: str):
         super().__init__(config)
         self.symbol = symbol
-        self.key = {"bitbank": self.config["bitbank"]}
+        self.total_api_call_count = 0
+        self.current_key_index = 0
+        try:
+            self.keys = self.config["bitbank_keys"]
+            self.key = {"bitbank": self.keys[self.current_key_index]}
+            self.check_keys = True
+        except KeyError:
+            self.key = {"bitbank": self.config["bitbank"]}
+            self.check_keys = False
         self.stop_flag = False
         self.retry_count = 3
         # 発注履歴ファイルを保存するファイルのパラメータ
@@ -122,7 +130,14 @@ class BitBank(BotBase):
 
 
     async def _requests(self, method: str, url: str, params=None, data=None):
-        async with pybotters.Client(apis=self.key, base_url='https://api.bitbank.cc/v1') as client:
+        if self.check_keys:
+            self.current_key_index = self.total_api_call_count % len(self.keys)
+            current_key = {"bitbank": self.keys[self.current_key_index]}
+            self.total_api_call_count += 1
+        else:
+            current_key = self.key
+
+        async with pybotters.Client(apis=current_key, base_url='https://api.bitbank.cc/v1') as client:
             response = await client.request(method, url=url, params=params, data=data)
             if not str(response.status).startswith('2'):
                 if str(response.status).startswith("429"):
