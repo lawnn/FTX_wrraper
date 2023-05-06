@@ -358,7 +358,7 @@ class BitBank(BotBase):
     async def cancel_all_orders(self):
         """
         全ての注文をキャンセルします
-        APIを2回消費します
+        取得系APIを1回,注文系APIを1回消費します
         """
         failed_count = 0
         try:
