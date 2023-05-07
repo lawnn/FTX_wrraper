@@ -50,6 +50,7 @@ class BitBank(BotBase):
 
     async def _cancel_and_liquidate(self):
         """
+        ※bitbankは現物取引なので信用取引ができるようになりAPIの仕様が変わったら修正する.
         全ての注文をキャンセルした後、ポジションを成行で反対売買してクローズします.
         """
         self.log_debug("_cancel_and_liquidate start.")
