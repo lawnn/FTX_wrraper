@@ -1,10 +1,9 @@
 import asyncio
 import pybotters
-from .time_util import now_jst, now_jst_str
+from .time_util import now_jst
 from decimal import Decimal
 from traceback import format_exc
 from .base import BotBase
-from .logfile import OrderHistory
 from .exceptions import APIException, RequestException
 
 
@@ -28,10 +27,6 @@ class BitBank(BotBase):
         # 何かしらのエラーがでたときに繰り返す回数
         self.retry_count = 3
         # 発注履歴ファイルを保存するファイルのパラメータ
-        try:
-            self.order_history_dir = self.config["log_dir"]
-        except KeyError:
-            self.order_history_dir = 'log'
         self.columns = {
             "order_no": "オーダーNo.",
             "order_id": "オーダーID",
@@ -41,9 +36,6 @@ class BitBank(BotBase):
             "price": "実際にオーダーした価格",
             "current_position": "現在ポジション",
         }
-        self.order_history_file_name_base = f"{self.exchange_name}_{self.bot_name}_order_history"
-        self.order_history_files = {}
-        self.order_history_file_class = OrderHistory
 
 
     async def start(self):
@@ -69,37 +61,6 @@ class BitBank(BotBase):
         ロジック部分です. 子クラスで実装します.
         """
         raise NotImplementedError()
-
-
-    def write_order_history(self, order_history):
-        """
-        発注履歴を出力します.
-        :param order_history: ログデータ.
-        """
-        self.get_or_create_order_history_file().write_row_by_dict(order_history)
-
-
-    def get_or_create_order_history_file(self):
-        """
-        現在時刻を元に発注履歴ファイルを取得します.
-        ファイルが存在しない場合、新規で作成します.
-        :return: 発注履歴ファイル.
-        """
-        today_str = now_jst_str("%y%m%d")
-        order_history_file_name = self.order_history_file_name_base + f"_{today_str}.csv"
-        full_path = self.order_history_dir + "/" + order_history_file_name
-        if today_str not in self.order_history_files:
-            self.order_history_files[today_str] = self.order_history_file_class(full_path, self.columns)
-            self.order_history_files[today_str].open()
-        return self.order_history_files[today_str]
-
-
-    def close_order_history_files(self):
-        """
-        発注履歴ファイルをクローズします.
-        """
-        for order_history_file in self.order_history_files.values():
-            order_history_file.close()
 
 
     async def _cancel_and_liquidate(self):

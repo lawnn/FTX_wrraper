@@ -4,6 +4,8 @@ import os
 import requests
 import logging
 from logging.handlers import RotatingFileHandler
+from .logfile import OrderHistory
+from .time_util import now_jst_str
 
 
 class Log(object):
@@ -161,3 +163,41 @@ class Notify(Log):
 class BotBase(Notify):
     def __init__(self, path):
         super().__init__(path)
+        # 発注履歴ファイルを保存するファイルのパラメータ
+        try:
+            self.order_history_dir = self.config["log_dir"]
+        except KeyError:
+            self.order_history_dir = 'log'
+        self.columns = {}
+        # csvファイルを書き込む場所
+        self.order_history_file_name_base = f"{self.exchange_name}_{self.bot_name}_order_history"
+        self.order_history_files = {}
+        self.order_history_file_class = OrderHistory
+
+    def write_order_history(self, order_history):
+        """
+        発注履歴を出力します.
+        :param order_history: ログデータ.
+        """
+        self.get_or_create_order_history_file().write_row_by_dict(order_history)
+
+    def get_or_create_order_history_file(self):
+        """
+        現在時刻を元に発注履歴ファイルを取得します.
+        ファイルが存在しない場合、新規で作成します.
+        :return: 発注履歴ファイル.
+        """
+        today_str = now_jst_str("%y%m%d")
+        order_history_file_name = self.order_history_file_name_base + f"_{today_str}.csv"
+        full_path = self.order_history_dir + "/" + order_history_file_name
+        if today_str not in self.order_history_files:
+            self.order_history_files[today_str] = self.order_history_file_class(full_path, self.columns)
+            self.order_history_files[today_str].open()
+        return self.order_history_files[today_str]
+
+    def close_order_history_files(self):
+        """
+        発注履歴ファイルをクローズします.
+        """
+        for order_history_file in self.order_history_files.values():
+            order_history_file.close()
