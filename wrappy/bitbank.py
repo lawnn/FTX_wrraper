@@ -23,7 +23,6 @@ class BitBank(BotBase):
         except KeyError:
             self.key = {"bitbank": self.config["bitbank"]}
             self.check_keys = False
-        self.stop_flag = False
         # 何かしらのエラーがでたときに繰り返す回数
         self.retry_count = 3
         # 発注履歴ファイルを保存するファイルのパラメータ
@@ -38,29 +37,15 @@ class BitBank(BotBase):
         }
 
 
-    async def start(self):
-        """
-        ボットを起動します.
-        """
-        await self._run_logic()
-        self.log_info("Bot started.")
-
-
     async def stop(self):
         """
         ボットを停止します.
         """
-        self.stop_flag = True
-        self.log_info("Logic threads has been stopped.")
+        self.log_debug("bitbank stop start")
+        super().stop()
         await self._cancel_and_liquidate()
         self.close_order_history_files()
-
-
-    async def _run_logic(self):
-        """
-        ロジック部分です. 子クラスで実装します.
-        """
-        raise NotImplementedError()
+        self.log_debug("bitbank stop end")
 
 
     async def _cancel_and_liquidate(self):
