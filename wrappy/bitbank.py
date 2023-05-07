@@ -65,6 +65,7 @@ class BitBank(BotBase):
             self.log_info(f"Liquidating current position {position} lot.")
             order_datetime = now_jst()
             order = await self.market_order("sell", position)
+            current_position = await self.fetch_my_position()
             order_history = {
                 "order_no": "",
                 "order_id": order["order_id"],
@@ -72,7 +73,7 @@ class BitBank(BotBase):
                 "order_kind": "Bot Stop Liquidation",
                 "size": position,
                 "price": 0,
-                "current_position": 0
+                "current_position": current_position
             }
             self.write_order_history(order_history)
         self.log_debug("_cancel_and_liquidate end.")
