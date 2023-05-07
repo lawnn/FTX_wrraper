@@ -165,6 +165,7 @@ class Notify(Log):
 class BotBase(Notify):
     def __init__(self, path):
         super().__init__(path)
+        self.stop_flag = False
         # 発注履歴ファイルを保存するファイルのパラメータ
         try:
             self.order_history_dir = self.config["log_dir"]
@@ -176,12 +177,37 @@ class BotBase(Notify):
         self.order_history_files = {}
         self.order_history_file_class = OrderHistory
 
+
+    async def start(self):
+        """
+        ボットを起動します.
+        """
+        await self._run_logic()
+        self.log_info("Bot started.")
+
+
+    def stop(self):
+        """
+        ボットを停止します.
+        """
+        self.stop_flag = True
+        self.log_info("Logic threads has been stopped.")
+
+
+    async def _run_logic(self):
+        """
+        ロジック部分です. 子クラスで実装します.
+        """
+        raise NotImplementedError()
+
+
     def write_order_history(self, order_history):
         """
         発注履歴を出力します.
         :param order_history: ログデータ.
         """
         self.get_or_create_order_history_file().write_row_by_dict(order_history)
+
 
     def get_or_create_order_history_file(self):
         """
@@ -196,6 +222,7 @@ class BotBase(Notify):
             self.order_history_files[today_str] = self.order_history_file_class(full_path, self.columns)
             self.order_history_files[today_str].open()
         return self.order_history_files[today_str]
+
 
     def close_order_history_files(self):
         """
