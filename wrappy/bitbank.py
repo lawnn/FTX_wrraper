@@ -1,6 +1,5 @@
 import asyncio
 import pybotters
-import time
 from .time_util import now_jst, now_jst_str
 from decimal import Decimal
 from traceback import format_exc
@@ -16,11 +15,10 @@ class BitBank(BotBase):
         self.symbol = symbol
         # APIを呼ぶ回数
         self.total_api_call_count = 0
-        # 今呼んでいるAPI key _requestメソッドでカウントしています.
-        self.current_key_index = 0
         # API keyの設定
         try:
             self.keys = self.config["bitbank_keys"]
+            self.current_key_index = 0
             self.key = {"bitbank": self.keys[self.current_key_index]}
             self.check_keys = True
         except KeyError:
@@ -112,10 +110,10 @@ class BitBank(BotBase):
         self.log_info("Canceling all open orders.")
         # 全てキャンセル.
         await self.cancel_all_orders()
-        time.sleep(5)
+        await asyncio.sleep(5)
         # 5秒置いてさらに全てキャンセル.
         await self.cancel_all_orders()
-        time.sleep(5)
+        await asyncio.sleep(5)
         position = await self.fetch_my_position()
         if position >= 0.0001:
             self.log_info(f"Liquidating current position {position} lot.")
