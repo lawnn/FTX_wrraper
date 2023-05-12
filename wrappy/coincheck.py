@@ -24,9 +24,13 @@ class CoinCheck(BotBase):
 
 
     async def fetch_ticker(self):
+        failed_count = 0
         try:
             return await self._requests("GET", url="/api/ticker", params={"pair": self.symbol})
         except Exception as e:
-            self.log_error("API request failed in fetch ticker")
-            self.log_error(format_exc())
-            raise e
+            failed_count += 1
+            if failed_count > 5:
+                self.log_error("API request failed in fetch ticker")
+                self.log_error(format_exc())
+                raise e
+            await asyncio.sleep(1)
