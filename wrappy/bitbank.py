@@ -2,7 +2,6 @@ import asyncio
 import pybotters
 from .time_util import now_jst
 from decimal import Decimal
-from traceback import format_exc
 from .base import BotBase
 from .exceptions import APIException, RequestException
 
@@ -126,8 +125,7 @@ class BitBank(BotBase):
         try:
             return await self._requests("GET", url="/user/assets")
         except Exception as e:
-            self.log_error("API request failed in market_order.")
-            self.log_error(format_exc())
+            self.log_exception("API request failed in market_order.")
             raise e
 
 
@@ -140,8 +138,7 @@ class BitBank(BotBase):
         try:
             return await self._replace_order(side, size, "market")
         except Exception as e:
-            self.log_error("API request failed in market_order.")
-            self.log_error(format_exc())
+            self.log_exception("API request failed in market_order.")
             raise e
 
 
@@ -155,9 +152,11 @@ class BitBank(BotBase):
         """
         try:
             return await self._replace_order(side=side, size=size, order_type="limit", price=price, post_only=post_only)
+        except RequestException as e:
+            self.log_exception(f"API request failed in limit_order.")
+            raise e
         except Exception as e:
-            self.log_error("API request failed in limit_order.")
-            self.log_error(format_exc())
+            self.log_exception("API request failed in limit_order.")
             raise e
 
 
@@ -168,8 +167,7 @@ class BitBank(BotBase):
         try:
             return await self._requests("GET", url="/user/spot/active_orders", params={"pair": self.symbol})
         except Exception as e:
-            self.log_error("API request failed in fetch active order.")
-            self.log_error(format_exc())
+            self.log_exception("API request failed in fetch active order.")
             raise e
 
 
@@ -188,8 +186,7 @@ class BitBank(BotBase):
         except Exception as e:
             failed_count += 1
             if failed_count > self.retry_count:
-                self.logger.error("API request failed in fetch_open_order.")
-                self.logger.error(format_exc())
+                self.log_exception("API request failed in fetch_open_order.")
                 raise e
             await asyncio.sleep(0.2)
 
@@ -202,8 +199,7 @@ class BitBank(BotBase):
         try:
             return await self._requests("GET", url="/user/spot/order", params={"pair": self.symbol, "order_id": order_id})
         except Exception as e:
-            self.log_error("API request failed in fetch order info.")
-            self.log_error(format_exc())
+            self.log_exception("API request failed in fetch order info.")
             raise e
 
 
@@ -215,8 +211,7 @@ class BitBank(BotBase):
         try:
             return await self._requests("POST", url="/user/spot/orders_info", data={"pair": self.symbol, "order_ids": order_ids})
         except Exception as e:
-            self.log_error("API request failed in fetch orders info.")
-            self.log_error(format_exc())
+            self.log_exception("API request failed in fetch orders info.")
             raise e
 
 
@@ -227,8 +222,7 @@ class BitBank(BotBase):
         try:
             return await self._requests("GET", url="/user/spot/trade_history", params={"pair": self.symbol})
         except Exception as e:
-            self.log_error("API request failed in fetch orders info.")
-            self.log_error(format_exc())
+            self.log_exception("API request failed in fetch orders info.")
             raise e
 
 
@@ -237,7 +231,6 @@ class BitBank(BotBase):
         ポジション数を取得します
         実行すると取得系APIを一度に2回消費します
         """
-        failed_count = 0
         try:
             balance = await self.fetch_balance()
             open_orders = await self._fetch_active_order()
@@ -255,13 +248,8 @@ class BitBank(BotBase):
 
             return float(position + remaining_amount)
         except RequestException as e:
-            failed_count += 1
-            if failed_count > self.retry_count:
-                self.logger.error("API request failed in fetch_my_position.")
-                self.logger.error(format_exc())
-                self.logger.error(e)
-                raise e
-            await asyncio.sleep(0.2)
+            self.log_exception("API request failed in fetch_my_position.")
+            raise e
 
 
     async def cancel_and_fetch_position(self) -> float:
@@ -270,7 +258,6 @@ class BitBank(BotBase):
         実行すると取得系APIを2回,注文系を1回消費します
         注文をキャンセルしつつポジション数を取得したいときに使います
         """
-        failed_count = 0
         try:
             await self.cancel_all_orders()
             symbol = self.symbol.replace("_jpy", "")
@@ -280,13 +267,8 @@ class BitBank(BotBase):
                     return float(balance["assets"][i]["free_amount"])
 
         except RequestException as e:
-            failed_count += 1
-            if failed_count > self.retry_count:
-                self.logger.error("API request failed in cancel_and_fetch_position.")
-                self.logger.error(format_exc())
-                self.logger.error(e)
-                raise e
-            await asyncio.sleep(0.2)
+            self.log_exception("API request failed in cancel_and_fetch_position.")
+            raise e
 
 
     async def _cancel_order(self, order_id: int) -> any:
@@ -315,7 +297,6 @@ class BitBank(BotBase):
                 return None
             else:
                 self.log_exception("API request failed in cancel orders.")
-                self.log_exception(format_exc())
                 raise e
         except RequestException as e:
             raise e
@@ -337,7 +318,6 @@ class BitBank(BotBase):
             failed_count += 1
             if failed_count > self.retry_count:
                 self.logger.exception("API request failed in cancel_all_orders.")
-                self.logger.exception(format_exc())
                 raise e
             await asyncio.sleep(0.2)
 
@@ -349,6 +329,5 @@ class BitBank(BotBase):
         try:
             return await self._requests("GET", url="/spot/status")
         except Exception as e:
-            self.log_error("API request failed in exchange status")
-            self.log_error(format_exc())
+            self.log_exception("API request failed in exchange status")
             raise e
