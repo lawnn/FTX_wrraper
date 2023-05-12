@@ -45,24 +45,25 @@ class Log(object):
         if not self.logger:
             self.logger = logging.getLogger(f"{self.exchange_name}_{self.bot_name}")
             self.logger.setLevel(self.log_level)
-            stream_formatter = logging.Formatter(fmt="[%(levelname)s] %(asctime)s : %(message)s",
-                                                 datefmt="%Y-%m-%d %H:%M:%S")
-            stream_handler = logging.StreamHandler()
-            stream_handler.setFormatter(stream_formatter)
-            stream_handler.setLevel(self.log_level)
-            self.logger.addHandler(stream_handler)
-            if self.log_dir:
-                # コンフィグファイルでログディレクトリが指定されていた場合、ファイルにも出力します.
-                if not os.path.exists(self.log_dir):
-                    os.mkdir(self.log_dir)
-                file_formatter = logging.Formatter(fmt="[%(levelname)s] %(asctime)s %(module)s: %(message)s",
-                                                   datefmt="%Y-%m-%d %H:%M:%S")
-                file_handler = RotatingFileHandler(
-                    filename=os.path.join(self.log_dir, f"{self.exchange_name}_{self.bot_name}.log"),
-                    maxBytes=1024 * 1024 * 2, backupCount=3)
-                file_handler.setFormatter(file_formatter)
-                file_handler.setLevel(self.log_level)
-                self.logger.addHandler(file_handler)
+            if not self.logger.hasHandlers():
+                stream_formatter = logging.Formatter(fmt="[%(levelname)s] %(asctime)s : %(message)s",
+                                                     datefmt="%Y-%m-%d %H:%M:%S")
+                stream_handler = logging.StreamHandler()
+                stream_handler.setFormatter(stream_formatter)
+                stream_handler.setLevel(self.log_level)
+                self.logger.addHandler(stream_handler)
+                if self.log_dir:
+                    # コンフィグファイルでログディレクトリが指定されていた場合、ファイルにも出力します.
+                    if not os.path.exists(self.log_dir):
+                        os.mkdir(self.log_dir)
+                    file_formatter = logging.Formatter(fmt="[%(levelname)s] %(asctime)s %(module)s: %(message)s",
+                                                       datefmt="%Y-%m-%d %H:%M:%S")
+                    file_handler = RotatingFileHandler(
+                        filename=os.path.join(self.log_dir, f"{self.exchange_name}_{self.bot_name}.log"),
+                        maxBytes=1024 * 1024 * 2, backupCount=3)
+                    file_handler.setFormatter(file_formatter)
+                    file_handler.setLevel(self.log_level)
+                    self.logger.addHandler(file_handler)
 
     def log_error(self, message):
         """
