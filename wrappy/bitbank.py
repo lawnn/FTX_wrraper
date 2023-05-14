@@ -80,6 +80,7 @@ class BitBank(BotBase):
 
 
     async def _requests(self, method: str, url: str, params=None, data=None):
+        # 複数のkeyを使いまわすには"bitbank_keys"をコンフィグに設定します.
         if self.check_keys:
             self.current_key_index = self.total_api_call_count % len(self.keys)
             current_key = {"bitbank": self.keys[self.current_key_index]}
