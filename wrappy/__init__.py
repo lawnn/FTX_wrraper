@@ -1,6 +1,7 @@
 from .base import Notify, BotBase
 from .gmo import GMO
 from .bitbank import BitBank
+from .bitflyer import bitflyer
 from .coincheck import CoinCheck
 from .logfile import OrderHistory
 from .exceptions import APIException, RequestException
