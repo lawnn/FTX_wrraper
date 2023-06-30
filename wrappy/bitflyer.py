@@ -55,23 +55,24 @@ class bitflyer(BotBase):
         await self.cancel_all_orders()
         await asyncio.sleep(5)
         position = await self.fetch_my_position()
-        if abs(position["size"]) >= moq:
-            self.log_info(f"Liquidating current position {position} lot.")
-            order_datetime = now_jst()
-            if position["side"] == "BUY":
-                order = await self.market_order("SELL", position["size"])
-            else:
-                order = await self.market_order("BUY", position["size"])
-            order_history = {
-                "order_no": "",
-                "order_id": order["child_order_acceptance_id"],
-                "timestamp": order_datetime.timestamp(),
-                "order_kind": "Bot Stop Liquidation",
-                "size": position["side"],
-                "price": 0,
-                "current_position": position["size"]
-            }
-            self.write_order_history(order_history)
+        if position:
+            if abs(position["size"]) >= moq:
+                self.log_info(f"Liquidating current position {position['size']} lot.")
+                order_datetime = now_jst()
+                if position["side"] == "BUY":
+                    order = await self.market_order("SELL", position["size"])
+                else:
+                    order = await self.market_order("BUY", position["size"])
+                order_history = {
+                    "order_no": "",
+                    "order_id": order["child_order_acceptance_id"],
+                    "timestamp": order_datetime.timestamp(),
+                    "order_kind": "Bot Stop Liquidation",
+                    "size": position["side"],
+                    "price": 0,
+                    "current_position": position["size"]
+                }
+                self.write_order_history(order_history)
         self.log_debug("_cancel_and_liquidate end.")
 
 
