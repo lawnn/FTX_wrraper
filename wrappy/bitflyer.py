@@ -1,6 +1,7 @@
 import asyncio
 import pybotters
-from typing import Literal
+from typing import Literal, Union
+from decimal import Decimal
 from .time_util import now_jst
 from .base import BotBase
 from .exceptions import RequestException
@@ -81,13 +82,13 @@ class bitflyer(BotBase):
             return await client.request(method, url=url, params=params, data=data)
 
 
-    async def _replace_order(self, side: str, size: float, order_type: str, price: any = None,
+    async def _replace_order(self, side: str, size: Union[float, int, Decimal], order_type: str, price: any = None,
                              minute_to_expire: int = 43200, time_in_force: str = "GTC"):
         request = {
             "product_code": self.symbol,
             "child_order_type": order_type,
             "side": side,
-            "size": size,
+            "size": float(size),
             "minute_to_expire": minute_to_expire,
             "time_in_force": time_in_force
         }
@@ -108,7 +109,7 @@ class bitflyer(BotBase):
         return  await response.json()
 
 
-    async def market_order(self, side: str, size: float) -> dict:
+    async def market_order(self, side: Literal["BUY", "SELL"], size: Union[float, int, Decimal]) -> dict:
         """
         成行注文です
         :param side: buy or sell
@@ -117,7 +118,7 @@ class bitflyer(BotBase):
         return await self._replace_order(side, size, "MARKET")
 
 
-    async def limit_order(self, side: Literal["BUY", "SELL"], size: float, price: any,
+    async def limit_order(self, side: Literal["BUY", "SELL"], size: Union[float, int, Decimal], price: any,
                           minute_to_expire: int = 43200, time_in_force: Literal["GTC", "IOC", "FOK"] = "GTC") -> dict:
         """
         指値注文です
@@ -179,6 +180,6 @@ class bitflyer(BotBase):
         if not response:
             return {}
         else:
-            size = sum([r["size"] for r in response])
+            size = sum([Decimal(str(r["size"])) for r in response])
             side = response[0]["side"]
             return {"side": side, "size": size}
