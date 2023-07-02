@@ -192,7 +192,7 @@ class BotBase(Notify):
         ボットを停止します.
         """
         self.stop_flag = True
-        self.log_info("Logic threads has been stopped.")
+        self.log_info("Logic has been stopped.")
 
 
     async def _run_logic(self):
