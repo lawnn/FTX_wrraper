@@ -255,9 +255,5 @@ class bitflyer(BotBase):
                         if child_order_acceptance_id in self.order_acceptanceID:
                             del self.order_acceptanceID[child_order_acceptance_id]
 
-                    self.log_debug(f"Event orders data: \n{msg.data}")
-                    self.log_debug(f"acceptance_id:\n{self.order_acceptanceID}")
-                    self.log_debug(f"Position: \n{self.position}")
-
         except Exception as e:
             self.log_exception(e)
