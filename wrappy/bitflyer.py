@@ -32,7 +32,7 @@ class bitflyer(BotBase):
         # position
         self.position = {}
         # 発注ID
-        self.order_acceptanceID = {}
+        self.order_acceptanceID = []
 
     async def stop(self):
         """
@@ -193,7 +193,7 @@ class bitflyer(BotBase):
         pybotters DataStore childorderevents でイベントが起きたときにorderとpositionの管理を行います.
         example response
             self.position = {'side': 'BUY' or 'SELL', 'size': Decimal(size)}
-            self.order_acceptanceID{'JRF20230702-050152-184972': 0.01}
+            self.order_acceptanceID = ['JRF20230702-050152-184972']
         """
         # 初期化
         self.position = await self.fetch_my_position()
@@ -206,8 +206,7 @@ class bitflyer(BotBase):
                     child_order_acceptance_id = event_data['child_order_acceptance_id']
 
                     if event_type == 'ORDER':
-                        size = event_data['size']
-                        self.order_acceptanceID[child_order_acceptance_id] = size  # 注文サイズを追加(現状意味なし)
+                        self.order_acceptanceID.append(child_order_acceptance_id)  # 注文IDを追加
 
                     elif event_type == 'EXECUTION':
                         side = event_data['side']
@@ -217,7 +216,7 @@ class bitflyer(BotBase):
                             current_size = Decimal(str(self.position['size']))
                             if self.position['side'] == 'BUY':
                                 if side == 'BUY':
-                                        self.position = {'side': 'BUY', 'size': current_size + size}
+                                    self.position = {'side': 'BUY', 'size': current_size + size}
                                 else:
                                     remaining_size = current_size - size
                                     if remaining_size > 0:
@@ -225,14 +224,14 @@ class bitflyer(BotBase):
                                     elif remaining_size < 0:
                                         self.position = {'side': 'SELL', 'size': abs(remaining_size)}
                                         if child_order_acceptance_id in self.order_acceptanceID:
-                                            del self.order_acceptanceID[child_order_acceptance_id]  # 注文を削除
+                                            self.order_acceptanceID.remove(child_order_acceptance_id)  # 注文を削除
                                     else:
                                         self.position = {}
                                         if child_order_acceptance_id in self.order_acceptanceID:
-                                            del self.order_acceptanceID[child_order_acceptance_id]
+                                            self.order_acceptanceID.remove(child_order_acceptance_id)
                             else:
                                 if side == 'SELL':
-                                        self.position = {'side': 'SELL', 'size': current_size + size}
+                                    self.position = {'side': 'SELL', 'size': current_size + size}
                                 else:
                                     remaining_size = current_size - size
                                     if remaining_size > 0:
@@ -240,19 +239,21 @@ class bitflyer(BotBase):
                                     elif remaining_size < 0:
                                         self.position = {'side': 'BUY', 'size': abs(remaining_size)}
                                         if child_order_acceptance_id in self.order_acceptanceID:
-                                            del self.order_acceptanceID[child_order_acceptance_id]
+                                            self.order_acceptanceID.remove(child_order_acceptance_id)
                                     else:
                                         self.position = {}
                                         if child_order_acceptance_id in self.order_acceptanceID:
-                                            del self.order_acceptanceID[child_order_acceptance_id]
+                                            self.order_acceptanceID.remove(child_order_acceptance_id)
                         else:
                             self.position = {'side': side, 'size': size}
                             if child_order_acceptance_id in self.order_acceptanceID:
-                                del self.order_acceptanceID[child_order_acceptance_id]
+                                self.order_acceptanceID.remove(child_order_acceptance_id)
 
                     else:   # event_type が ORDER_FAILED, CANCEL, CANCEL_FAILED, EXPIREの時の処理
                         if child_order_acceptance_id in self.order_acceptanceID:
-                            del self.order_acceptanceID[child_order_acceptance_id]
+                            self.order_acceptanceID.remove(child_order_acceptance_id)
 
+        except ValueError as ve:
+            self.log_exception(ve)
         except Exception as e:
             self.log_exception(e)
