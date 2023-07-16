@@ -47,3 +47,7 @@ def now_utc_str(date_format="%Y-%m-%d %H:%M:%S"):
     :return:
     """
     return datetime.datetime.utcnow().strftime(date_format)
+
+
+def fromISOformat(d):
+    return datetime.datetime.fromisoformat(d)
