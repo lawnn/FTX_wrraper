@@ -1,30 +1,93 @@
 import pybotters
 import asyncio
-from datetime import datetime
-from wrappy.base import BotBase
-
+from decimal import Decimal
+from typing import Literal, Union
+from .time_util import now_jst
+from .base import BotBase
+from .exceptions import RequestException
 
 class GMO(BotBase):
     def __init__(self, config: str, symbol: str):
         super().__init__(config)
         self.symbol = symbol
+        # API keyの設定
+        self.key = {"gmocoin": self.config["gmocoin"]}
+        # 発注履歴ファイルを保存するファイルのパラメータ
+        self.columns = {
+            "order_no": "オーダーNo.",
+            "order_id": "オーダーID",
+            "timestamp": "オーダー時刻",
+            "order_kind": "オーダー種別",
+            "size": "実際にオーダーしたサイズ",
+            "price": "実際にオーダーした価格",
+            "current_position": "現在ポジション",
+        }
+        # position
+        self.position = {}
 
     async def _requests(self, method: str, url: str, params=None, data=None):
-        async with pybotters.Client(apis=self.apis, base_url='https://api.coin.z.com') as client:
+        async with pybotters.Client(apis=self.key, base_url='https://api.coin.z.com') as client:
             r = await client.request(method, url=url, params=params, data=data)
+            if not str(r.status).startswith('2'):
+                raise RequestException(f"[{r.status}] server error")
             data = await r.json()
-            if data['status'] == 0:
-                return data
-            else:
-                err_list = ['ERR-189', 'ERR-201', 'ERR-208', 'ERR-254', 'ERR-430', 'ERR-554', 'ERR-635', 'ERR-682',
-                            'ERR-683', 'ERR-5003', 'ERR-5010', 'ERR-5012', 'ERR-5014', 'ERR-5111', 'ERR-5121']
+            if not data['status'] == 0:
                 err_code = data['messages'][0]['message_code']
                 err_msg = str(data['messages'][0]['message_string'])
-                if err_code in err_list:
-                    self.statusNotify(f'[Error code] https://api.coin.z.com/docs/#error-code\n[{err_code}] {err_msg}')
-                    raise Exception(f'[Error code] https://api.coin.z.com/docs/#error-code\n[{err_code}] {err_msg}')
+                raise RequestException(f"[Error code] {err_code} [Error msg] {err_msg}")
+            else:
+                if "data" in data:
+                    return data["data"]
                 else:
                     return data
+
+    async def stop(self):
+        """
+        ボットを停止します.
+        """
+        self.log_debug("gmocoin stop start")
+        super().stop()
+        await self._cancel_and_liquidate()
+        self.close_order_history_files()
+        self.log_debug("gmocoin stop end")
+
+
+    async def _cancel_and_liquidate(self, moq = 0.01):
+        """
+        全ての注文をキャンセルした後、ポジションを成行で反対売買してクローズします.
+        :param moq(Minimum Order Quantity)　最小ロットです
+        """
+        self.log_debug("_cancel_and_liquidate start.")
+        self.log_info("Canceling all open orders.")
+        # 全てキャンセル.
+        await asyncio.sleep(1)
+        await self.cancel_all_orders()
+        # 5秒置いてさらに全てキャンセル.
+        await asyncio.sleep(5)
+        await self.cancel_all_orders()
+        position_list = await self.position_summary(self.symbol)
+        if position_list["list"]:
+            for i in range(len(position_list["list"])):
+                size = position_list["list"][i]['sumPositionQuantity']
+                if position_list["list"][i]["side"] == "BUY":
+                    side = "SELL"
+                else:
+                    side = "BUY"
+
+                if Decimal(size) >= Decimal(str(moq)):
+                    order_id = await self.liquidate_order_market(side, size)
+                    self.log_info(f"Liquidating current position {size} lot.")
+                    order_history = {
+                        "order_no": "",
+                        "order_id": order_id,
+                        "timestamp": now_jst().timestamp(),
+                        "order_kind": "Bot Stop Liquidation",
+                        "size": size,
+                        "price": 0,
+                        "current_position": 0
+                    }
+                    self.write_order_history(order_history)
+        self.log_debug("_cancel_and_liquidate end.")
 
     async def account_margin(self):
         """
@@ -43,18 +106,7 @@ class GMO(BotBase):
           "responsetime": "2019-03-19T02:15:06.051Z"
         }
         """
-        count = 0
-        while True:
-            req = await self._requests('GET', '/private/v1/account/margin')
-            if req['status'] == 0:
-                return req['data']
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in account margin.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in account margin.")
+        return await self._requests('GET', '/private/v1/account/margin')
 
     async def account_assets(self):
         """
@@ -79,18 +131,7 @@ class GMO(BotBase):
           "responsetime": "2019-03-19T02:15:06.055Z"
         }
         """
-        count = 0
-        while True:
-            req = await self._requests('GET', '/private/v1/account/assets')
-            if req['status'] == 0:
-                return req['data']
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in account assets.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in account assets.")
+        return await self._requests('GET', '/private/v1/account/assets')
 
     async def orders(self, orderId):
         """
@@ -140,18 +181,7 @@ class GMO(BotBase):
         }
         """
         params = {"orderId": f'{orderId}'}
-        count = 0
-        while True:
-            req = await self._requests('GET', '/private/v1/orders', params=params)
-            if req['status'] == 0:
-                return req['data']
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in orders.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in orders.")
+        return await self._requests('GET', '/private/v1/orders', params=params)
 
     async def active_orders(self, symbol: str, page: int = 1, count: int = 100):
         """
@@ -186,19 +216,8 @@ class GMO(BotBase):
           "responsetime": "2019-03-19T01:07:24.217Z"
         }
         """
-        params = {"symbol": symbol, "page": page, "count": count}
-        count = 0
-        while True:
-            req = await self._requests('GET', '/private/v1/activeOrders', params=params)
-            if req['status'] == 0:
-                return req['data']
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in active orders.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in active orders.")
+        return await self._requests('GET', '/private/v1/activeOrders',
+                                    params={"symbol": symbol, "page": page, "count": count})
 
     async def executions(self, executionId):
         """
@@ -241,19 +260,8 @@ class GMO(BotBase):
         }
         """
         # params = {"orderId	": orderId}
-        params = {"executionId": f'{executionId}'}
-        count = 0
-        while True:
-            req = await self._requests('GET', '/private/v1/executions', params=params)
-            if req['status'] == 0:
-                return req['data']
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in executions.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in executions.")
+        # params = {"executionId": f'{executionId}'}
+        return await self._requests('GET', '/private/v1/executions', params={"executionId": f'{executionId}'})
 
     async def latest_executions(self, symbol: str, page: int = 1, count: int = 100):
         """
@@ -287,19 +295,8 @@ class GMO(BotBase):
           "responsetime": "2019-03-19T02:15:06.086Z"
         }
         """
-        params = {"symbol": symbol, "page": page, "count": count}
-        count = 0
-        while True:
-            req = await self._requests('GET', '/private/v1/latestExecutions', params=params)
-            if req['status'] == 0:
-                return req['data']
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in latest executions.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in latest executions.")
+        return await self._requests('GET', '/private/v1/latestExecutions',
+                                    params={"symbol": symbol, "page": page, "count": count})
 
     async def open_positions(self, symbol: str, page: int = 1, count: int = 100):
         """
@@ -331,29 +328,15 @@ class GMO(BotBase):
           "responsetime": "2019-03-19T02:15:06.095Z"
         }
         """
-        params = {"symbol": symbol, "page": page, "count": count}
-        count = 0
-        while True:
-            req = await self._requests('GET', '/private/v1/openPositions', params=params)
-            if req['status'] == 0:
-                return req['data']
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in open positions.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in open positions.")
+        return await self._requests('GET', '/private/v1/openPositions',
+                                   params={"symbol": symbol, "page": page, "count": count})
 
-    async def position_summary(self, symbol: str):
+    async def position_summary(self, symbol: str=None):
         """
         建玉サマリーを取得
         指定した銘柄の建玉サマリーを売買区分(買/売)ごとに取得ができます
         symbolパラメータ指定無しの場合は、保有している全銘柄の建玉サマリーを売買区分(買/売)ごとに取得します。
         :return:
-        {
-          "status": 0,
-          "data": {
             "list": [
               {
                 "averagePositionRate": "715656",    平均建玉レート
@@ -364,51 +347,54 @@ class GMO(BotBase):
                 "symbol": "BTC_JPY"
               }
             ]
-          },
-          "responsetime": "2019-03-19T02:15:06.102Z"
-        }
         """
-        params = {"symbol": symbol}
-        count = 0
-        while True:
-            req = await self._requests('GET', '/private/v1/positionSummary', params=params)
-            if req['status'] == 0:
-                return req['data']
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in position summary.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in position summary.")
+        return await self._requests('GET', '/private/v1/positionSummary', params={"symbol": symbol})
 
-    async def replace_order(self, side: str, size: float, _type: str, price: float = None, create_order: bool = None,
-                            positionId: int = None):
+    async def fetch_my_position(self):
+        data = await self.position_summary(self.symbol)
+        if data["list"]:
+            return {"side": data["list"][0]["side"], "size": Decimal(data["list"][0]["sumPositionQuantity"])}
+        else:
+            return {}
+
+    async def _replace_order(self, side: str,
+                             size: Union[float, int, Decimal],
+                             order_type: Literal["MARKET", "LIMIT", "STOP"],
+                             price: float = None,
+                             create_or_liquidate: Literal["create", "liquidate", "liquidate_all"] = None,
+                             positionId: int = None,
+                             timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
+                             cancelBefore: bool = False):
         data = {
             "symbol": self.symbol,
             "side": side,
-            "executionType": _type,
+            "executionType": order_type,
+            "timeInForce": timeInForce,
+            "cancelBefore": cancelBefore
         }
 
-        if create_order:
+        if create_or_liquidate == 'create':    # 新規の注文
             url = '/private/v1/order'
-            data["size"] = str(size)
-        elif not create_order:
+            data["size"] = float(size)
+        elif create_or_liquidate == 'liquidate':  # positionId毎に決済
             url = '/private/v1/closeOrder'
-            data["settlePosition"] = [{"positionId": positionId,
-                                       "size": str(size)}]
-        else:
+            data["settlePosition"] = [{"positionId": positionId, "size": float(size)}]
+        else:   # 全てのポジションを決済
             url = '/private/v1/closeBulkOrder'
-            data["size"] = str(size)
+            data["size"] = float(size)
 
-        if (_type == 'LIMIT') or (_type == 'STOP'):
-            data['price'] = str(price)
+        if (order_type == 'LIMIT') or (order_type == 'STOP'):
+            data['price'] = price
 
         return await self._requests('POST', url=url, data=data)
 
-    async def order_market(self, side: str, size: float):
+    async def market_order(self, side: Literal["BUY", "SELL"], size,
+                           timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
+                           cancelBefore: bool = False):
         """
         新規の成行注文
+        :param cancelBefore:
+        :param timeInForce:
         :param side:
         :param size:
         :return:
@@ -416,22 +402,17 @@ class GMO(BotBase):
                     "data": "637000", (orderID)
                     "responsetime": "2019-03-19T02:15:06.108Z"}
         """
-        count = 0
-        while True:
-            req = await self.replace_order(side, size, 'MARKET', create_order=True)
-            if req['status'] == 0:
-                return req['data']
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in market order.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in market order.")
+        return await self._replace_order(side, size, 'MARKET', create_or_liquidate="create",
+                                         timeInForce=timeInForce, cancelBefore=cancelBefore)
 
-    async def order_limit(self, side: str, size: float, price: float):
+    async def limit_order(self, side: Literal["BUY", "SELL"], size, price: float,
+                          timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
+                          cancelBefore: bool = False
+                          ):
         """
         新規の指値注文
+        :param cancelBefore:
+        :param timeInForce:
         :param side:
         :param size:
         :param price:
@@ -440,22 +421,16 @@ class GMO(BotBase):
             "data": "637000", (orderID)
             "responsetime": "2019-03-19T02:15:06.108Z"}
         """
-        count = 0
-        while True:
-            req = await self.replace_order(side, size, 'LIMIT', price=price, create_order=True)
-            if req['status'] == 0:
-                return req['data']
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in limit order.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in limit order.")
+        return await self._replace_order(side, size, 'LIMIT', price=price, create_or_liquidate="create",
+                                         timeInForce=timeInForce, cancelBefore=cancelBefore)
 
-    async def settle_market(self, side: str, size: float, positionId: int):
+    async def settle_market(self, side: str, size, positionId: int,
+                           timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
+                           cancelBefore: bool = False):
         """
-        成行決済注文
+        指定されたポジションIDを成行決済します
+        :param timeInForce:
+        :param cancelBefore:
         :param side:
         :param size:
         :param positionId:
@@ -464,22 +439,16 @@ class GMO(BotBase):
             "data": "637000", (orderID)
             "responsetime": "2019-03-19T02:15:06.108Z"}
         """
-        count = 0
-        while True:
-            req = await self.replace_order(side, size, 'MARKET', create_order=False, positionId=positionId)
-            if req['status'] == 0:
-                return req['data']
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in market order.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in market order.")
+        return await self._replace_order(side, size, 'MARKET', create_or_liquidate="liquidate", positionId=positionId,
+                                         timeInForce=timeInForce, cancelBefore=cancelBefore)
 
-    async def settle_limit(self, side: str, size: float, price: float, positionId: int):
+    async def settle_limit(self, side: str, size, price: float, positionId: int,
+                           timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
+                           cancelBefore: bool = False):
         """
-        指値決済注文
+        指定されたポジションIDを指値決済します
+        :param timeInForce:
+        :param cancelBefore:
         :param side:
         :param size:
         :param price:
@@ -489,22 +458,16 @@ class GMO(BotBase):
                     "data": "637000", (orderID)
                     "responsetime": "2019-03-19T02:15:06.108Z"}
         """
-        count = 0
-        while True:
-            req = await self.replace_order(side, size, 'LIMIT', price=price, create_order=False, positionId=positionId)
-            if req['status'] == 0:
-                return req['data']
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in limit order.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in limit order.")
+        return await self._replace_order(side, size, 'LIMIT', price=price, create_or_liquidate="liquidate",
+                                         positionId=positionId, timeInForce=timeInForce, cancelBefore=cancelBefore)
 
-    async def collective_settlement_order_market(self, side: str, size: float):
+    async def liquidate_order_market(self, side: str, size,
+                           timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
+                           cancelBefore: bool = False):
         """
         一括成行決済注文
+        :param timeInForce:
+        :param cancelBefore:
         :param side:
         :param size:
         :return:
@@ -512,23 +475,16 @@ class GMO(BotBase):
             "data": "637000", (orderID)
             "responsetime": "2019-03-19T02:15:06.108Z"}
         """
-        count = 0
-        while True:
-            req = await self.replace_order(side, size, 'MARKET')
-            if req['status'] == 0:
-                return req['data']
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in market order.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in market order.")
+        return await self._replace_order(side, size, 'MARKET', create_or_liquidate="liquidate_all",
+                                         timeInForce=timeInForce, cancelBefore=cancelBefore)
 
-    async def collective_settlement_order_limit(self, side: str, size: float, price: float):
+    async def liquidate_order_limit(self, side: str, size, price: float,
+                           timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
+                           cancelBefore: bool = False):
         """
-        一括決済注文
-        一括決済注文をします。
+        一括指値決済注文
+        :param timeInForce:
+        :param cancelBefore:
         :param side:
         :param size:
         :param price:
@@ -537,20 +493,10 @@ class GMO(BotBase):
             "data": "637000",       orderID
             "responsetime": "2019-03-19T02:15:06.108Z"}
         """
-        count = 0
-        while True:
-            req = await self.replace_order(side, size, 'LIMIT', price=price)
-            if req['status'] == 0:
-                return req['data']
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in limit order.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in limit order.")
+        return await self._replace_order(side, size, 'LIMIT', price=price, create_or_liquidate="liquidate_all",
+                                         timeInForce=timeInForce, cancelBefore=cancelBefore)
 
-    async def cancel_order(self, order_id: int):
+    async def cancel_order(self, order_id: Union[int, str]):
         """
         注文キャンセル
         :param order_id:
@@ -561,28 +507,15 @@ class GMO(BotBase):
           "responsetime": "2019-03-19T01:07:24.557Z"
         }
         """
-        count = 0
-        while True:
-            req = await self._requests('POST', '/private/v1/cancelOrder', data={'orderId': order_id})
-            if req['status'] == 0:
-                return req['responsetime']
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in cancel order.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in cancel order.")
+        return await self._requests('POST', '/private/v1/cancelOrder', data={'orderId': order_id})
 
-    async def cancel_any_orders(self, order_id: int):
+    async def cancel_any_orders(self, order_id: list):
         """
-        注文の複数キャンセル
-        :order_id: [1,2,3]
+        注文の複数キャンセル 約定などの理由でIDが無かった場合はfailedに情報が載ります
+        :order_id: [1,2,3,4]
         :return:
         "result": "Orders queued for cancelation"
         {
-          "status": 0,
-          "data": {
               "failed": [
                 {
                   "message_code": "ERR-5122",
@@ -596,53 +529,26 @@ class GMO(BotBase):
                 }
               ],
               "success": [3,4]
-          },
-          "responsetime": "2019-03-19T01:07:24.557Z"
         }
         """
-        count = 0
-        while True:
-            req = await self._requests('POST', '/private/v1/cancelOrders', data={'orderId': order_id})
-            if req['status'] == 0:
-                return req['data']
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in cancel any orders.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in cancel any orders.")
+        return await self._requests('POST', '/private/v1/cancelOrders', data={'orderIds': order_id})
 
-    async def cancel_all_orders(self, side: str = None):
+    async def cancel_all_orders(self, side: Literal["BUY", "SELL"] = None, settleType: Literal["OPEN", "CLOSE"] = None,
+                                desc: bool = None):
         """
-        {
-          "status": 0,
-          "data": [637000,637002],
-          "responsetime": "2019-03-19T01:07:24.557Z"
-        }
+        全ての注文をキャンセルします(取消対象検索後に、最大10件まで注文を取消します。)
+        :param desc: true の場合、注文日時が新しい注文から取消します。false の場合、注文日時が古い注文から取消します。指定がない場合はfalse
+        :param settleType: OPEN CLOSE 指定時のみ、現物取引注文と指定された決済区分のレバレッジ取引注文を取消対象にします。
         :param side: BUY SELL 指定時のみ、指定された売買区分の注文を取消対象にします。
-        :return:
+        :return: [637000,637002]
         """
-        data = {
-            "symbols": [self.symbol],
-            "side": side
-        }
-        count = 0
-        while True:
-            req = await self._requests('POST', '/private/v1/cancelBulkOrder', data=data)
-            if req['status'] == 0:
-                return req
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in cancel all orders.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in cancel all orders.")
+        return await self._requests('POST', '/private/v1/cancelBulkOrder',
+                                   data={"symbols": [self.symbol], "side": side, "settleType": settleType, "desc": desc})
 
-    async def edit_order(self, orderId: int, price: float):
+    async def edit_order(self, orderId: int, price: Union[int,float], losscutPrice: Union[int,float] = None):
         """
         注文変更
+        :param losscutPrice:
         :param orderId:
         :param price:
         :return:
@@ -651,96 +557,9 @@ class GMO(BotBase):
           "responsetime": "2019-03-19T01:07:24.557Z"
         }
         """
-        count = 0
-        while True:
-            req = await self._requests('POST', '/private/v1/changeOrder', data={"orderId": orderId, "price": price})
-            if req['status'] == 0:
-                return req['responsetime']
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in edit orders.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in edit orders.")
+        return await self._requests('POST', '/private/v1/changeOrder',
+                                    data={"orderId": orderId, "price": price, "losscutPrice": losscutPrice})
 
     async def historical(self, symbol: str, interval: str, date: str):
-        params = {"symbol": symbol, 'interval': interval, 'date': date}
-        count = 0
-        req = await self._requests('GET', f'/public/v1/klines', params=params)
-        if req['status'] == 0:
-            return req['data']
-        else:
-            count += 1
-            await asyncio.sleep(1)
-            if count == 60:
-                self.statusNotify("API request failed in historical.")
-                self.statusNotify(str(req))
-                raise Exception("API request failed in historical.")
-
-    async def _access_token(self, method: str, data: dict = None):
-        return await self._requests(method, '/private/v1/ws-auth', data=data)
-
-    async def get_access_token(self):
-        """
-        Private WebSocket API用のアクセストークンを取得します。
-            有効期限は60分です。
-            アクセストークンは最大5個まで発行できます。
-            発行上限を超えた場合、有効期限の近いトークンから順に削除されます。
-        :return:
-        {
-          "data": "xxxxxxxxxxxxxxxxxxxx",
-          "timestamp": 1552929306
-        }
-        """
-        count = 0
-        while True:
-            req = await self._access_token('POST')
-            dt = int(datetime.fromisoformat(req['responsetime'].replace('Z', '')).timestamp())
-            if req['status'] == 0:
-                return {'data': req['data'], 'timestamp': dt}
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in get access token.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in get access token.")
-
-    async def extension_access_token(self, token: str):
-        """
-        Private WebSocket API用のアクセストークンを延長します。
-        延長前の残り有効期限に関わらず、新しい有効期限は60分となります。
-        :return: 1552929306     Timestamp
-        """
-        count = 0
-        while True:
-            req = await self._access_token('PUT', data={"token": token})
-            if req['status'] == 0:
-                return int(datetime.fromisoformat(req['responsetime'].replace('Z', '')).timestamp())
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in extension access token.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in extension access token.")
-
-    async def delete_access_token(self, token: str):
-        """
-        Private WebSocket API用のアクセストークンを削除します。
-        botが止まった時に使用します。
-        :return: 1552929306     Timestamp
-        """
-        count = 0
-        while True:
-            req = await self._access_token('DELETE', data={"token": token})
-            if req['status'] == 0:
-                return int(datetime.fromisoformat(req['responsetime'].replace('Z', '')).timestamp())
-            else:
-                count += 1
-                await asyncio.sleep(1)
-                if count == 60:
-                    self.statusNotify("API request failed in delete access token.")
-                    self.statusNotify(str(req))
-                    raise Exception("API request failed in delete access token.")
+        return await self._requests('GET', f'/public/v1/klines',
+                                    params={"symbol": symbol, 'interval': interval, 'date': date})
