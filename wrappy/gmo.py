@@ -219,6 +219,26 @@ class GMO(BotBase):
         return await self._requests('GET', '/private/v1/activeOrders',
                                     params={"symbol": symbol, "page": page, "count": count})
 
+    async def fetch_all_order_id(self) -> list:
+        """
+        アクティブオーダーを取得します.
+        """
+        try:
+            active_orders = await asyncio.wait_for(self.active_orders(self.symbol), timeout=2)
+            if active_orders:
+                order_ids = [item['orderId'] for item in active_orders['list']]
+                return order_ids
+            else:
+                return active_orders
+        except RequestException as e:
+            self.log_warning(e)
+            return []
+        except TimeoutError as e:
+            self.log_warning(e)
+            return []
+
+
+
     async def executions(self, executionId):
         """
         約定情報取得
