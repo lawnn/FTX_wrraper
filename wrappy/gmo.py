@@ -583,3 +583,16 @@ class GMO(BotBase):
     async def historical(self, symbol: str, interval: str, date: str):
         return await self._requests('GET', f'/public/v1/klines',
                                     params={"symbol": symbol, 'interval': interval, 'date': date})
+
+    # websocket
+    async def ws(self, client, store, params):
+        """ exsample code
+        params = [{"command": "subscribe", "channel": "orderbooks", "symbol": self.symbol},
+                  {"command": "subscribe", "channel": "trades", "symbol": self.symbol}]
+        async with pybotters.Client() as client:
+            await self.ws(client, store, params)
+        """
+        client.ws_connect(
+            'wss://api.coin.z.com/ws/public/v1',
+            send_json=params,
+            hdlr_json=store.onmessage)
