@@ -1,5 +1,6 @@
 import pybotters
 import asyncio
+from pybotters.helpers import GMOCoinHelper
 from decimal import Decimal
 from typing import Literal, Union
 from .time_util import now_jst
@@ -596,3 +597,39 @@ class GMO(BotBase):
             'wss://api.coin.z.com/ws/public/v1',
             send_json=params,
             hdlr_json=store.onmessage)
+
+    # private websocket
+    async def gmo_priv_ws(self, client, store, tg, *subscriptions):
+        """ example code
+        購読したいchannelを指定
+        priv_gmo_subscriptions = [
+                        {"command": "subscribe", "channel": "positionEvents"},
+                        {"command": "subscribe", "channel": "orderEvents"}
+                        ]
+        async with pybotters.Client() as client:
+            async with asyncio.TaskGroup() as tg:
+                tg.create_task(self.gmo_priv_ws(client, store, tg, *priv_gmo_subscriptions))
+                それか
+                # tg.create_task(self.gmo_priv_ws(client, store, tg, {"command": "subscribe", "channel": "positionEvents"}, {"command": "subscribe", "channel": "orderEvents"}))
+        """
+        # Create a helper instance for GMOCoin.
+        gmohelper = GMOCoinHelper(client)
+
+        # Alias for POST /private/v1/ws-auth.
+        token = await gmohelper.create_access_token()
+
+        # サブスクリプションコマンドのリストを動的に構築する。
+        subscription_commands = []
+        for subscription in subscriptions:
+            command = {"command": subscription["command"], "channel": subscription["channel"]}
+            if "option" in subscription:
+                command["option"] = subscription["option"]
+            subscription_commands.append(command)
+
+        ws = await client.ws_connect(
+            f"wss://api.coin.z.com/ws/private/v1/{token}",
+            send_json=subscription_commands,
+            hdlr_json=store.onmessage
+        )
+
+        tg.create_task(gmohelper.manage_ws_token(ws, token))
