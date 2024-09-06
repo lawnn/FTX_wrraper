@@ -67,16 +67,6 @@ class bitflyer(BotBase):
                     order = await self.market_order("SELL", position["size"])
                 else:
                     order = await self.market_order("BUY", position["size"])
-                order_history = {
-                    "order_no": "",
-                    "order_id": order["child_order_acceptance_id"],
-                    "timestamp": order_datetime.timestamp(),
-                    "order_kind": "Bot Stop Liquidation",
-                    "size": position["side"],
-                    "price": 0,
-                    "current_position": position["size"]
-                }
-                self.write_order_history(order_history)
         self.log_debug("_cancel_and_liquidate end.")
 
 

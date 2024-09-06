@@ -78,16 +78,6 @@ class GMO(BotBase):
                 if Decimal(size) >= Decimal(str(moq)):
                     order_id = await self.liquidate_order_market(side, size)
                     self.log_info(f"Liquidating current position {size} lot.")
-                    order_history = {
-                        "order_no": "",
-                        "order_id": order_id,
-                        "timestamp": now_jst().timestamp(),
-                        "order_kind": "Bot Stop Liquidation",
-                        "size": size,
-                        "price": 0,
-                        "current_position": 0
-                    }
-                    self.write_order_history(order_history)
         self.log_debug("_cancel_and_liquidate end.")
 
     async def account_margin(self):
