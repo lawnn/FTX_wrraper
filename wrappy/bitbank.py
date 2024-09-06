@@ -24,16 +24,6 @@ class BitBank(BotBase):
             self.check_keys = False
         # 何かしらのエラーがでたときに繰り返す回数
         self.retry_count = 3
-        # 発注履歴ファイルを保存するファイルのパラメータ
-        self.columns = {
-            "order_no": "オーダーNo.",
-            "order_id": "オーダーID",
-            "timestamp": "オーダー時刻",
-            "order_kind": "オーダー種別",
-            "size": "実際にオーダーしたサイズ",
-            "price": "実際にオーダーした価格",
-            "current_position": "現在ポジション",
-        }
 
 
     async def stop(self):

@@ -13,16 +13,6 @@ class GMO(BotBase):
         self.symbol = symbol
         # API keyの設定
         self.key = {"gmocoin": self.config["gmocoin"]}
-        # 発注履歴ファイルを保存するファイルのパラメータ
-        self.columns = {
-            "order_no": "オーダーNo.",
-            "order_id": "オーダーID",
-            "timestamp": "オーダー時刻",
-            "order_kind": "オーダー種別",
-            "size": "実際にオーダーしたサイズ",
-            "price": "実際にオーダーした価格",
-            "current_position": "現在ポジション",
-        }
         # position
         self.position = {}
 

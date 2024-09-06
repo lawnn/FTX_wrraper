@@ -12,6 +12,32 @@ class BotBase(Notify):
         self.columns = {}
         # csvファイルを書き込む場所
         self.target_csv_file = f"{self.exchange_name}_{self.bot_name}_order_history.csv"
+        # 発注履歴ファイルを保存するファイルのパラメータ
+        self.fieldnames = [
+                        "order_no",          # オーダーNo.
+                        "order_id",          # オーダーID
+                        "timestamp",         # オーダー時刻
+                        "order_kind",        # オーダー種別
+                        "size",              # 実際にオーダーしたサイズ
+                        "price",             # 実際にオーダーした価格
+                        "current_position"   # 現在ポジション
+                        ]
+        """csvio 簡単な使い方
+        from csvio import CSVWriter
+        writer = CSVWriter(self.target_csv_file, fieldnames=self.fieldnames)
+        order_history = {
+                        "order_no": 123,
+                        "order_id": 456789,
+                        "timestamp": '2024-09-06 22:31:41',
+                        "order_kind": "ask",
+                        "size": 1,
+                        "price": 1000000,
+                        "current_position": 2,
+                        }
+        writer.add_rows(order_history) row追加
+        writer.flush()  csv書き込み
+        """
+        
 
     async def start(self):
         """
