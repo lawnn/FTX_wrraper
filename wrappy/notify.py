@@ -1,4 +1,4 @@
-import requests
+import aiohttp
 from .log import Log
 
 class Notify(Log):
@@ -18,47 +18,48 @@ class Notify(Log):
             # 設定されていなければNoneにしておく
             self.discordWebhook = None
 
-    def lineNotify(self, message, fileName=None):
+    async def lineNotify(self, message, fileName=None):
         payload = {'message': message}
         headers = {'Authorization': 'Bearer ' + self.line_notify_token}
-        if fileName is None:
-            try:
-                requests.post('https://notify-api.line.me/api/notify', data=payload, headers=headers)
-                self.log_info(message)
-            except Exception as e:
-                self.log_error(e)
-                raise e
-        else:
-            try:
-                files = {"imageFile": open(fileName, "rb")}
-                requests.post('https://notify-api.line.me/api/notify', data=payload, headers=headers, files=files)
-            except Exception as e:
-                self.log_error(e)
-                raise e
+        async with aiohttp.ClientSession() as session:
+            if fileName is None:
+                try:
+                    await session.post('https://notify-api.line.me/api/notify', data=payload, headers=headers)
+                    self.log_info(message)
+                except Exception as e:
+                    self.log_error(e)
+                    raise e
+            else:
+                try:
+                    files = {"imageFile": open(fileName, "rb")}
+                    await session.post('https://notify-api.line.me/api/notify', data=payload, headers=headers, files=files)
+                except Exception as e:
+                    self.log_error(e)
+                    raise e
 
     # config.json内の[discordWebhook]で指定されたDiscordのWebHookへの通知
-    def discordNotify(self, message, fileName=None):
+    async def discordNotify(self, message, fileName=None):
         payload = {"content": " " + message + " "}
-        if fileName is None:
-            try:
-                requests.post(self.discordWebhook, data=payload)
-                self.log_info(message)
-            except Exception as e:
-                self.log_error(e)
-                raise e
-        else:
-            try:
-                files = {"imageFile": open(fileName, "rb")}
-                requests.post(self.discordWebhook, data=payload, files=files)
-            except Exception as e:
-                self.log_error(e)
-                raise e
+        async with aiohttp.ClientSession() as session:
+            if fileName is None:
+                try:
+                    await session.post(self.discordWebhook, data=payload)
+                    self.log_info(message)
+                except Exception as e:
+                    self.log_error(e)
+                    raise e
+            else:
+                try:
+                    files = {"imageFile": open(fileName, "rb")}
+                    await session.post(self.discordWebhook, data=payload, files=files)
+                except Exception as e:
+                    self.log_error(e)
+                    raise e
 
-    def statusNotify(self, message, fileName=None):
+    async def statusNotify(self, message, fileName=None):
         # config.json内に[discordWebhook]が設定されていなければLINEへの通知
         if self.discordWebhook is None:
-            self.lineNotify(message, fileName)
+            await self.lineNotify(message, fileName)
         else:
             # config.json内に[discordWebhook]が設定されていればDiscordへの通知
-            self.discordNotify(message, fileName)
-
+            await self.discordNotify(message, fileName)
