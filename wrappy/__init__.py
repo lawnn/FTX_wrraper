@@ -1,4 +1,6 @@
-from .base import Notify, BotBase
+from .log import Log
+from .notify import Notify
+from .base import BotBase
 from .gmo import GMO
 from .bitbank import BitBank
 from .bitflyer import bitflyer
