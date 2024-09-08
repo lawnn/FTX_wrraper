@@ -577,7 +577,7 @@ class GMO(BotBase):
         self.ws('wss://api.coin.z.com/ws/public/v1', client, store, subscription_commands)
 
     # private websocket
-    async def gmo_priv_ws(self, client, store, tg, *subscriptions):
+    async def gmo_priv_ws(self, client, store, *subscriptions):
         """ example code
         購読したいchannelを指定
         priv_gmo_subscriptions = [
@@ -586,9 +586,9 @@ class GMO(BotBase):
                         ]
         async with pybotters.Client() as client:
             async with asyncio.TaskGroup() as tg:
-                tg.create_task(self.gmo_priv_ws(client, store, tg, *priv_gmo_subscriptions))
+                tg.create_task(self.gmo_priv_ws(client, store, *priv_gmo_subscriptions))
                 それか
-                # tg.create_task(self.gmo_priv_ws(client, store, tg, {"command": "subscribe", "channel": "positionEvents"}, {"command": "subscribe", "channel": "orderEvents"}))
+                # tg.create_task(self.gmo_priv_ws(client, store, {"command": "subscribe", "channel": "positionEvents"}, {"command": "subscribe", "channel": "orderEvents"}))
         """
         # Create a helper instance for GMOCoin.
         gmohelper = GMOCoinHelper(client)
@@ -609,5 +609,5 @@ class GMO(BotBase):
             send_json=subscription_commands,
             hdlr_json=store.onmessage
         )
-
-        tg.create_task(gmohelper.manage_ws_token(ws, token))
+        async with asyncio.TaskGroup() as tg:
+            tg.create_task(gmohelper.manage_ws_token(ws, token))
