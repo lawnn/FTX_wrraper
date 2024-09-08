@@ -58,3 +58,12 @@ class BotBase(Notify):
         ロジック部分です. 子クラスで実装します.
         """
         raise NotImplementedError()
+
+    async def ws(self, url, client, store, subscription_commands):
+        """
+        websocketのベースです
+        """
+        client.ws_connect(
+            url,
+            send_json=subscription_commands,
+            hdlr_json=store.onmessage)
