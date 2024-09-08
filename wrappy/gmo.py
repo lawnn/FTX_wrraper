@@ -566,17 +566,15 @@ class GMO(BotBase):
                                     params={"symbol": symbol, 'interval': interval, 'date': date})
 
     # websocket
-    async def ws(self, client, store, params):
+    async def gmo_ws(self, client, store, *subscriptions):
         """ exsample code
         params = [{"command": "subscribe", "channel": "orderbooks", "symbol": self.symbol},
                   {"command": "subscribe", "channel": "trades", "symbol": self.symbol}]
         async with pybotters.Client() as client:
-            await self.ws(client, store, params)
+            await self.ws(client, store, *params)
         """
-        client.ws_connect(
-            'wss://api.coin.z.com/ws/public/v1',
-            send_json=params,
-            hdlr_json=store.onmessage)
+        subscription_commands = [{"command": subscription["command"], "channel": subscription["channel"], "symbol": subscription["symbol"]} for subscription in subscriptions]
+        self.ws('wss://api.coin.z.com/ws/public/v1', client, store, subscription_commands)
 
     # private websocket
     async def gmo_priv_ws(self, client, store, tg, *subscriptions):
