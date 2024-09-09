@@ -220,11 +220,15 @@ class GMO(BotBase):
 
 
 
-    async def executions(self, executionId):
+    async def executions(self, *Id, id_kind="orderId"):
         """
         約定情報取得
         orderId executionId いずれか一つが必須です。2つ同時には設定できません。
-        :return:
+        下記いずれかのIDを引数に入れます(ID number複数可能)
+        id_kind: orderId or executionId
+        Id: 3215487
+        
+        responce: 
         {
           "status": 0,
           "data": {
@@ -260,9 +264,13 @@ class GMO(BotBase):
           "responsetime": "2019-03-19T02:15:06.081Z"
         }
         """
-        # params = {"orderId	": orderId}
-        # params = {"executionId": f'{executionId}'}
-        return await self._requests('GET', '/private/v1/executions', params={"executionId": f'{executionId}'})
+        if id_kind == "orderId":
+          params = {"orderId": f"{Id}"}
+        elif id_kind == "executionId":
+          params = {"executionId": f"{Id}"}
+        else:
+          raise ValueError
+        return await self._requests('GET', '/private/v1/executions', params=params)
 
     async def latest_executions(self, symbol: str, page: int = 1, count: int = 100):
         """
