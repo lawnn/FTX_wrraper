@@ -574,7 +574,7 @@ class GMO(BotBase):
             await self.ws(client, store, *params)
         """
         subscription_commands = [{"command": subscription["command"], "channel": subscription["channel"], "symbol": subscription["symbol"]} for subscription in subscriptions]
-        self.ws('wss://api.coin.z.com/ws/public/v1', client, store, subscription_commands)
+        await self.ws('wss://api.coin.z.com/ws/public/v1', client, store, subscription_commands)
 
     # private websocket
     async def gmo_priv_ws(self, client, store, *subscriptions):
