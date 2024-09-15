@@ -39,14 +39,13 @@ class GMO(BotBase):
         self.log_debug("gmocoin stop start")
         super().stop()
         await self._cancel_and_liquidate()
-        self.close_order_history_files()
         self.log_debug("gmocoin stop end")
 
 
     async def _cancel_and_liquidate(self, moq = 0.01):
         """
         全ての注文をキャンセルした後、ポジションを成行で反対売買してクローズします.
-        :param moq(Minimum Order Quantity)　最小ロットです
+        :param moq(Minimum Order Quantity)最小ロットです
         """
         self.log_debug("_cancel_and_liquidate start.")
         self.log_info("Canceling all open orders.")

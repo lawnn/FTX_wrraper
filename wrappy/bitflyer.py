@@ -32,7 +32,6 @@ class bitflyer(BotBase):
         self.log_debug("bitflyer stop start")
         super().stop()
         await self._cancel_and_liquidate()
-        self.close_order_history_files()
         self.log_debug("bitflyer stop end")
 
 
