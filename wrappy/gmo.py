@@ -372,12 +372,14 @@ class GMO(BotBase):
                              create_or_liquidate: Literal["create", "liquidate", "liquidate_all"] = None,
                              positionId: int = None,
                              timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
+                             losscut_price: Union[float, int, Decimal, str] = None,
                              cancelBefore: bool = False):
         data = {
             "symbol": self.symbol,
             "side": side,
             "executionType": order_type,
             "timeInForce": timeInForce,
+            "losscutPrice": losscut_price,
             "cancelBefore": cancelBefore
         }
 
@@ -415,6 +417,7 @@ class GMO(BotBase):
 
     async def limit_order(self, side: Literal["BUY", "SELL"], size, price: float,
                           timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
+                          losscut_price: Union[float, int, Decimal, str] = None,
                           cancelBefore: bool = False
                           ):
         """
@@ -430,7 +433,7 @@ class GMO(BotBase):
             "responsetime": "2019-03-19T02:15:06.108Z"}
         """
         return await self._replace_order(side, size, 'LIMIT', price=price, create_or_liquidate="create",
-                                         timeInForce=timeInForce, cancelBefore=cancelBefore)
+                                         timeInForce=timeInForce, losscut_price=losscut_price, cancelBefore=cancelBefore)
 
     async def settle_market(self, side: str, size, positionId: int,
                            timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
