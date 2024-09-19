@@ -415,6 +415,22 @@ class GMO(BotBase):
         return await self._replace_order(side, size, 'MARKET', create_or_liquidate="create",
                                          timeInForce=timeInForce, cancelBefore=cancelBefore)
 
+    async def stop_order(self, side: Literal["BUY", "SELL"], size, price: float,
+                         cancelBefore: bool = False
+                         ):
+      """ストップ注文
+      成行注文にストップ注文をします
+      :param side:
+      :param size:
+      :param price:
+      :return:
+          {"status": 0,
+          "data": "637000", (orderID)
+          "responsetime": "2019-03-19T02:15:06.108Z"}
+      """
+      return await self._replace_order(side, size, 'STOP', price=price, create_or_liquidate="create",
+                                  cancelBefore=cancelBefore)
+
     async def limit_order(self, side: Literal["BUY", "SELL"], size, price: float,
                           timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
                           losscut_price: Union[float, int, Decimal, str] = None,
