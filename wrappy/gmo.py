@@ -368,7 +368,7 @@ class GMO(BotBase):
     async def _replace_order(self, side: str,
                              size: Union[float, int, Decimal],
                              order_type: Literal["MARKET", "LIMIT", "STOP"],
-                             price: float = None,
+                             price: Union[float, int, Decimal] = None,
                              create_or_liquidate: Literal["create", "liquidate", "liquidate_all"] = None,
                              positionId: int = None,
                              timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
@@ -398,7 +398,7 @@ class GMO(BotBase):
 
         return await self._requests('POST', url=url, data=data)
 
-    async def market_order(self, side: Literal["BUY", "SELL"], size,
+    async def market_order(self, side: Literal["BUY", "SELL"], size: Union[float, int, Decimal],
                            timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
                            cancelBefore: bool = False):
         """
@@ -415,7 +415,7 @@ class GMO(BotBase):
         return await self._replace_order(side, size, 'MARKET', create_or_liquidate="create",
                                          timeInForce=timeInForce, cancelBefore=cancelBefore)
 
-    async def stop_order(self, side: Literal["BUY", "SELL"], size, price: float,
+    async def stop_order(self, side: Literal["BUY", "SELL"], size: Union[float, int, Decimal], price: Union[float, int, Decimal],
                          cancelBefore: bool = False
                          ):
       """ストップ注文
@@ -431,7 +431,7 @@ class GMO(BotBase):
       return await self._replace_order(side, size, 'STOP', price=price, create_or_liquidate="create",
                                   cancelBefore=cancelBefore)
 
-    async def limit_order(self, side: Literal["BUY", "SELL"], size, price: float,
+    async def limit_order(self, side: Literal["BUY", "SELL"], size: Union[float, int, Decimal], price: Union[float, int, Decimal],
                           timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
                           losscut_price: Union[float, int, Decimal, str] = None,
                           cancelBefore: bool = False
@@ -451,7 +451,7 @@ class GMO(BotBase):
         return await self._replace_order(side, size, 'LIMIT', price=price, create_or_liquidate="create",
                                          timeInForce=timeInForce, losscut_price=losscut_price, cancelBefore=cancelBefore)
 
-    async def settle_market(self, side: str, size, positionId: int,
+    async def settle_market(self, side: str, size: Union[float, int, Decimal], positionId: int,
                            timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
                            cancelBefore: bool = False):
         """
@@ -469,7 +469,7 @@ class GMO(BotBase):
         return await self._replace_order(side, size, 'MARKET', create_or_liquidate="liquidate", positionId=positionId,
                                          timeInForce=timeInForce, cancelBefore=cancelBefore)
 
-    async def settle_limit(self, side: str, size, price: float, positionId: int,
+    async def settle_limit(self, side: str, size: Union[float, int, Decimal], price: Union[float, int, Decimal], positionId: int,
                            timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
                            cancelBefore: bool = False):
         """
@@ -488,7 +488,7 @@ class GMO(BotBase):
         return await self._replace_order(side, size, 'LIMIT', price=price, create_or_liquidate="liquidate",
                                          positionId=positionId, timeInForce=timeInForce, cancelBefore=cancelBefore)
 
-    async def liquidate_order_market(self, side: str, size,
+    async def liquidate_order_market(self, side: str, size: Union[float, int, Decimal],
                            timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
                            cancelBefore: bool = False):
         """
@@ -505,7 +505,7 @@ class GMO(BotBase):
         return await self._replace_order(side, size, 'MARKET', create_or_liquidate="liquidate_all",
                                          timeInForce=timeInForce, cancelBefore=cancelBefore)
 
-    async def liquidate_order_limit(self, side: str, size, price: float,
+    async def liquidate_order_limit(self, side: str, size: Union[float, int, Decimal], price: Union[float, int, Decimal],
                            timeInForce: Literal["FAK", "FAS", "FOK", "SOK"] = None,
                            cancelBefore: bool = False):
         """
