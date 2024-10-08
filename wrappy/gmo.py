@@ -385,16 +385,16 @@ class GMO(BotBase):
 
         if create_or_liquidate == 'create':    # 新規の注文
             url = '/private/v1/order'
-            data["size"] = float(size)
+            data["size"] = str(size)
         elif create_or_liquidate == 'liquidate':  # positionId毎に決済
             url = '/private/v1/closeOrder'
-            data["settlePosition"] = [{"positionId": positionId, "size": float(size)}]
+            data["settlePosition"] = [{"positionId": positionId, "size": str(size)}]
         else:   # 全てのポジションを決済
             url = '/private/v1/closeBulkOrder'
-            data["size"] = float(size)
+            data["size"] = str(size)
 
         if (order_type == 'LIMIT') or (order_type == 'STOP'):
-            data['price'] = price
+            data['price'] = str(price)
 
         return await self._requests('POST', url=url, data=data)
 
