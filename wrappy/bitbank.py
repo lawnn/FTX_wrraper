@@ -1,5 +1,6 @@
 import asyncio
 import pybotters
+from typing import Literal, Union
 from .time_util import now_jst
 from decimal import Decimal
 from .base import BotBase
@@ -71,34 +72,33 @@ class BitBank(BotBase):
             response = await client.request(method, url=url, params=params, data=data)
             if not str(response.status).startswith('2'):
                 if str(response.status).startswith("429"):
-                    self.log_error("429 Too Many Requests")
-                    await asyncio.sleep(1)
-                self.statusNotify(f"{response.status} error")
+                    raise RequestException(f"429 Too Many Requests")
+                self.statusNotify(f"Status {response.status} Error")
                 raise APIException(response)
             data = await response.json()
 
             if data["success"] == 0:
-                raise RequestException(f"{data['data']['code']} error")
+                raise RequestException(f"[Error code] {data['data']['code']} Error")
             else:
                 return data["data"]
 
 
-    async def _replace_order(self, side: str, size: float, order_type: str, price: any = None, post_only: bool = False):
+    async def _replace_order(self, side: str, size, order_type: str, price: any = None, post_only: bool = False):
         request = {
             "pair": self.symbol,
-            "amount": size,
+            "amount": str(size),
             "side": side,
             "type": order_type,
             "post_only": post_only
             }
 
         if order_type == "limit":
-            request["price"] = price
+            request["price"] = str(price)
 
         return await self._requests('POST', url="/user/spot/order", data=request)
 
 
-    async def market_order(self, side: str, size: float) -> dict:
+    async def market_order(self, side: Literal['buy', 'sell'], size: Union[float, int, Decimal]) -> dict:
         """
         成行注文です
         :param side: buy or sell
@@ -111,7 +111,7 @@ class BitBank(BotBase):
             raise e
 
 
-    async def limit_order(self, side: str, size: float, price: any, post_only: bool = False) -> dict:
+    async def limit_order(self, side: Literal['buy', 'sell'], size: Union[float, int, Decimal], price: Union[float, int, Decimal], post_only: bool = False) -> dict:
         """
         指値注文です
         :param side: buy or sell
@@ -133,32 +133,15 @@ class BitBank(BotBase):
         """
         口座情報を取得します
         """
-        failed_count = 0
-        while True:
-            try:
-                return await self._requests("GET", url="/user/assets")
-            except Exception as e:
-                failed_count += 1
-                if failed_count > self.retry_count:
-                    self.log_exception("API request failed in market_order.")
-                    raise e
-                await asyncio.sleep(0.2)
+        return await self._requests("GET", url="/user/assets")
+
 
 
     async def _fetch_active_order(self) -> dict:
         """
         注文中の情報を取得します
         """
-        failed_count = 0
-        while True:
-            try:
-                return await self._requests("GET", url="/user/spot/active_orders", params={"pair": self.symbol})
-            except Exception as e:
-                failed_count += 1
-                if failed_count > self.retry_count:
-                    self.log_exception("API request failed in fetch active order.")
-                    raise e
-                await asyncio.sleep(0.2)
+        return await self._requests("GET", url="/user/spot/active_orders", params={"pair": self.symbol})
 
 
     async def _fetch_order_info(self, order_id: int) -> dict:
@@ -166,16 +149,7 @@ class BitBank(BotBase):
         注文の情報を取得します(単品)
         主に非アクティブな情報を取得することに使います
         """
-        failed_count = 0
-        while True:
-            try:
-                return await self._requests("GET", url="/user/spot/order", params={"pair": self.symbol, "order_id": order_id})
-            except Exception as e:
-                failed_count += 1
-                if failed_count > self.retry_count:
-                    self.log_exception("API request failed in fetch order info.")
-                    raise e
-                await asyncio.sleep(0.2)
+        return await self._requests("GET", url="/user/spot/order", params={"pair": self.symbol, "order_id": order_id})
 
 
     async def _fetch_orders_info(self, order_ids: list) -> dict:
@@ -183,32 +157,14 @@ class BitBank(BotBase):
         注文の情報を取得します(複数)
         主に非アクティブな情報を取得することに使います
         """
-        failed_count = 0
-        while True:
-            try:
-                return await self._requests("POST", url="/user/spot/orders_info", data={"pair": self.symbol, "order_ids": order_ids})
-            except Exception as e:
-                failed_count += 1
-                if failed_count > self.retry_count:
-                    self.log_exception("API request failed in fetch orders info.")
-                    raise e
-                await asyncio.sleep(0.2)
+        return await self._requests("POST", url="/user/spot/orders_info", data={"pair": self.symbol, "order_ids": order_ids})
 
 
     async def fetch_trades_history(self) -> dict:
         """
         自分の約定履歴を取得します
         """
-        failed_count = 0
-        while True:
-            try:
-                return await self._requests("GET", url="/user/spot/trade_history", params={"pair": self.symbol})
-            except Exception as e:
-                failed_count += 1
-                if failed_count > self.retry_count:
-                    self.log_exception("API request failed in fetch orders info.")
-                    raise e
-                await asyncio.sleep(0.2)
+        return await self._requests("GET", url="/user/spot/trade_history", params={"pair": self.symbol})
 
 
     async def fetch_open_orders(self) -> list:
@@ -227,7 +183,7 @@ class BitBank(BotBase):
             raise e
 
 
-    async def fetch_my_position(self) -> float:
+    async def fetch_my_position(self) -> str:
         """
         ポジション数を取得します
         実行すると取得系APIを一度に2回消費します
@@ -247,9 +203,11 @@ class BitBank(BotBase):
                                     for order in open_orders["orders"]
                                     if order["side"] == "sell"])
 
-            return float(position + remaining_amount)
+            return str((position + remaining_amount).normalize())
         except RequestException as e:
-            self.log_exception("API request failed in fetch_my_position.")
+            raise e
+        except Exception as e:
+            self.logger.exception("API request failed in fetch_my_position.")
             raise e
 
 
@@ -268,7 +226,9 @@ class BitBank(BotBase):
                     return float(balance["assets"][i]["free_amount"])
 
         except RequestException as e:
-            self.log_exception("API request failed in cancel_and_fetch_position.")
+            raise e
+        except Exception as e:
+            self.logger.exception("API request failed in cancel_and_fetch_position.")
             raise e
 
 
@@ -312,7 +272,7 @@ class BitBank(BotBase):
             open_orders = await self.fetch_open_orders()
             return await self._cancel_any_orders(open_orders)
         except RequestException as e:
-            if str(e).startswith("40014"):
+            if str(e).startswith("40014", 35):
                 return None
         except Exception as e:
             self.logger.exception("API request failed in cancel_all_orders.")
