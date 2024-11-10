@@ -183,7 +183,7 @@ class BitBank(BotBase):
             raise e
 
 
-    async def old_fetch_my_position(self) -> str:
+    async def fetch_my_position(self) -> str:
         """
         現物の建玉情報です
         ポジション数を取得します
@@ -211,7 +211,7 @@ class BitBank(BotBase):
             self.logger.exception("API request failed in fetch_my_position.")
             raise e
 
-    async def fetch_my_positions(self):
+    async def fetch_positions(self):
         """信用取引の建玉情報です(多分)
         ### ペアごとにlongとshortのポジションごとの情報が見れるようになりました ###
         ### 11/10現在両建てできる仕様なのか不明 分かり次第コメント更新します ###
@@ -243,6 +243,24 @@ class BitBank(BotBase):
         }
         """
         return await self._requests("GET", url="/user/margin/positions")
+
+    async def fetch_my_positions(self, symbol) -> Decimal:
+        """
+        正の数字ならlong,負の数字ならshort
+        """
+        try:
+            pos = await self._fetch_my_positions()
+            for i in range(len(pos)):
+                if pos[i]['pair'] == symbol:
+                    if pos[i]['position_side'] == 'long':
+                        long_pos = Decimal(pos[i]['open_amount'])
+                    else:
+                        short_pos = Decimal(pos[i]['open_amount'])
+            return (long_pos - short_pos)
+        except RequestException as e:
+            raise e
+        except Exception as e:
+            raise e
 
     async def cancel_and_fetch_position(self) -> float:
         """
