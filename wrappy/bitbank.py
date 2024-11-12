@@ -22,8 +22,6 @@ class BitBank(BotBase):
         except KeyError:
             self.key = {"bitbank": self.config["bitbank"]}
             self.check_keys = False
-        # 何かしらのエラーがでたときに繰り返す回数
-        self.retry_count = 3
 
     async def stop(self):
         """
