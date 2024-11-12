@@ -1,7 +1,6 @@
 import asyncio
 import pybotters
 from typing import Literal, Union
-from .time_util import now_jst
 from decimal import Decimal
 from .base import BotBase
 from .exceptions import APIException, RequestException
@@ -26,7 +25,6 @@ class BitBank(BotBase):
         # 何かしらのエラーがでたときに繰り返す回数
         self.retry_count = 3
 
-
     async def stop(self):
         """
         ボットを停止します.
@@ -36,10 +34,8 @@ class BitBank(BotBase):
         await self._cancel_and_liquidate()
         self.log_debug("bitbank stop end")
 
-
     async def _cancel_and_liquidate(self):
         """
-        ※bitbankは現物取引なので信用取引ができるようになりAPIの仕様が変わったら修正する.
         全ての注文をキャンセルした後、ポジションを成行で反対売買してクローズします.
         """
         self.log_debug("_cancel_and_liquidate start.")
@@ -50,14 +46,41 @@ class BitBank(BotBase):
         # 5秒置いてさらに全てキャンセル.
         await self.cancel_all_orders()
         await asyncio.sleep(5)
-        position = await self.fetch_my_position()
-        if position >= 0.0001:
-            self.log_info(f"Liquidating current position {position} lot.")
-            order_datetime = now_jst()
-            order = await self.market_order("sell", position)
-            current_position = await self.fetch_my_position()
+        position = await self.fetch_my_positions(self.symbol)
+        if float(position['long']) >= 0.0001:
+            self.log_info(f"Liquidating Current Long Position {position['buy']} lot.")
+            await self.liquidate_market_order('sell', position['long'])
+        elif float(position['short']) >= 0.0001:
+            self.log_info(f"Liquidating Current Short Position {position['buy']} lot.")
+            await self.liquidate_market_order('buy', position['short'])
         self.log_debug("_cancel_and_liquidate end.")
 
+    async def spot_stop(self):
+        """
+        ボットを停止します.
+        """
+        self.log_debug("bitbank stop start")
+        super().stop()
+        await self.spot_cancel_and_liquidate()
+        self.log_debug("bitbank stop end")
+
+    async def spot_cancel_and_liquidate(self):
+        """
+        全ての注文をキャンセルした後、ポジションを成行で反対売買してクローズします.
+        """
+        self.log_debug("_cancel_and_liquidate start.")
+        self.log_info("Canceling all open orders.")
+        # 全てキャンセル.
+        await self.cancel_all_orders()
+        await asyncio.sleep(5)
+        # 5秒置いてさらに全てキャンセル.
+        await self.cancel_all_orders()
+        await asyncio.sleep(5)
+        position = await self.spot_fetch_position()
+        if position >= 0.0001:
+            self.log_info(f"Liquidating current position {position} lot.")
+            await self.spot_market_order("sell", position)
+        self.log_debug("_cancel_and_liquidate end.")
 
     async def _requests(self, method: str, url: str, params=None, data=None):
         # 複数のkeyを使いまわすには"bitbank_keys"をコンフィグに設定します.
@@ -82,38 +105,88 @@ class BitBank(BotBase):
             else:
                 return data["data"]
 
-
-    async def _replace_order(self, side: str, size, order_type: str, price: any = None, post_only: bool = False):
+    async def _replace_order(self, side, size, order_type, position_side=None, price: any = None, post_only: bool = False, trigger_price: str = None):
         request = {
             "pair": self.symbol,
             "amount": str(size),
             "side": side,
+            "position_side": position_side,
             "type": order_type,
-            "post_only": post_only
+            "post_only": post_only,
             }
 
         if order_type == "limit":
             request["price"] = str(price)
+        if order_type == "stop" or order_type == "stop_limit":
+            request["trigger_price"] = str(trigger_price)
 
         return await self._requests('POST', url="/user/spot/order", data=request)
 
-
     async def market_order(self, side: Literal['buy', 'sell'], size: Union[float, int, Decimal]) -> dict:
         """
-        成行注文です
+        信用取引の成行注文です
         :param side: buy or sell
         :param size: 数量
         """
-        try:
-            return await self._replace_order(side, size, "market")
-        except Exception as e:
-            self.log_exception("API request failed in market_order.")
-            raise e
+        if side == 'buy':
+            position_side = 'long'
+        else:
+            position_side = 'short'
+        return await self._replace_order(side, size, "market", position_side=position_side)
 
+    async def liquidate_market_order(self, side: Literal['buy', 'sell'], size: Union[float, int, Decimal]) -> dict:
+        """
+        信用取引の清算成行注文です
+        longポジションを決済する場合は side=sell
+        shortポジションを決済する場合は side=buy
+        :param side: buy or sell
+        :param size: 数量
+        """
+        if side == 'buy':
+            position_side = 'short'
+        else:
+            position_side = 'long'
+        return await self._replace_order(side, size, "market", position_side=position_side)
+
+    async def spot_market_order(self, side: Literal['buy', 'sell'], size: Union[float, int, Decimal]) -> dict:
+        """
+        現物の成行注文です
+        :param side: buy or sell
+        :param size: 数量
+        """
+        return await self._replace_order(side, size, "market")
 
     async def limit_order(self, side: Literal['buy', 'sell'], size: Union[float, int, Decimal], price: Union[float, int, Decimal], post_only: bool = False) -> dict:
         """
-        指値注文です
+        信用取引の指値注文です
+        :param side: buy or sell
+        :param size: 数量
+        :param price: 値段
+        :param post_only: 必ずMakerの注文にするか否か Takerの注文の場合発注されません True or False
+        """
+        if side == 'buy':
+            position_side = 'long'
+        else:
+            position_side = 'short'
+        return await self._replace_order(side, size, order_type="limit", price=price, post_only=post_only, position_side=position_side)
+
+    async def liquidate_limit_order(self, side: Literal['buy', 'sell'], size: Union[float, int, Decimal], price: Union[float, int, Decimal], post_only: bool = False) -> dict:
+        """
+        信用取引の指値清算注文です
+        :param side: buy or sell
+        :param size: 数量
+        :param price: 値段
+        :param post_only: 必ずMakerの注文にするか否か Takerの注文の場合発注されません True or False
+        """
+        if side == 'buy':
+            position_side = 'short'
+        else:
+            position_side = 'long'
+        return await self._replace_order(side=side, size=size, order_type="limit", price=price, post_only=post_only, position_side=position_side)
+
+    async def spot_limit_order(self, side: Literal['buy', 'sell'], size: Union[float, int, Decimal], price: Union[float, int, Decimal], post_only: bool = False) -> dict:
+        """
+        現物の指値注文です
         :param side: buy or sell
         :param size: 数量
         :param price: 値段
@@ -128,21 +201,17 @@ class BitBank(BotBase):
             self.log_exception("API request failed in limit_order.")
             raise e
 
-
     async def fetch_balance(self) -> dict:
         """
         口座情報を取得します
         """
         return await self._requests("GET", url="/user/assets")
 
-
-
     async def _fetch_active_order(self) -> dict:
         """
         注文中の情報を取得します
         """
         return await self._requests("GET", url="/user/spot/active_orders", params={"pair": self.symbol})
-
 
     async def _fetch_order_info(self, order_id: int) -> dict:
         """
@@ -151,7 +220,6 @@ class BitBank(BotBase):
         """
         return await self._requests("GET", url="/user/spot/order", params={"pair": self.symbol, "order_id": order_id})
 
-
     async def _fetch_orders_info(self, order_ids: list) -> dict:
         """
         注文の情報を取得します(複数)
@@ -159,13 +227,11 @@ class BitBank(BotBase):
         """
         return await self._requests("POST", url="/user/spot/orders_info", data={"pair": self.symbol, "order_ids": order_ids})
 
-
     async def fetch_trades_history(self) -> dict:
         """
         自分の約定履歴を取得します
         """
         return await self._requests("GET", url="/user/spot/trade_history", params={"pair": self.symbol})
-
 
     async def fetch_open_orders(self) -> list:
         """
@@ -182,8 +248,7 @@ class BitBank(BotBase):
             self.log_exception("API request failed in fetch_open_order.")
             raise e
 
-
-    async def fetch_my_position(self) -> str:
+    async def spot_fetch_position(self) -> str:
         """
         現物の建玉情報です
         ポジション数を取得します
@@ -208,13 +273,12 @@ class BitBank(BotBase):
         except RequestException as e:
             raise e
         except Exception as e:
-            self.logger.exception("API request failed in fetch_my_position.")
+            self.logger.exception("API request failed in spot_fetch_my_position.")
             raise e
 
     async def fetch_positions(self):
-        """信用取引の建玉情報です(多分)
-        ### ペアごとにlongとshortのポジションごとの情報が見れるようになりました ###
-        ### 11/10現在両建てできる仕様なのか不明 分かり次第コメント更新します ###
+        """信用取引の建玉情報です
+        主にpositionsに建玉の情報が入ります
         {
             "notice": {
             "what": "string",
@@ -244,23 +308,25 @@ class BitBank(BotBase):
         """
         return await self._requests("GET", url="/user/margin/positions")
 
-    async def fetch_my_positions(self, symbol) -> Decimal:
+    async def fetch_my_positions(self, symbol) -> dict:
         """
-        正の数字ならlong,負の数字ならshort
+        信用取引の建玉を辞書にまとめたものです
+        {
+        long: longポジション数量,
+        short: shortポジション数量
+        }
         """
-        try:
-            pos = await self._fetch_my_positions()
-            for i in range(len(pos)):
-                if pos[i]['pair'] == symbol:
-                    if pos[i]['position_side'] == 'long':
-                        long_pos = Decimal(pos[i]['open_amount'])
-                    else:
-                        short_pos = Decimal(pos[i]['open_amount'])
-            return (long_pos - short_pos)
-        except RequestException as e:
-            raise e
-        except Exception as e:
-            raise e
+        pos = await self.fetch_positions()
+        for i in range(len(pos['positions'])):
+            if pos['positions'][i]['pair'] == symbol:
+                if pos['positions'][i]['position_side'] == 'long':
+                    long_pos = pos['positions'][i]['open_amount']
+                else:
+                    short_pos = pos['positions'][i]['open_amount']
+        return {
+            'long': long_pos,
+            'short': short_pos
+            }
 
     async def cancel_and_fetch_position(self) -> float:
         """
@@ -282,7 +348,6 @@ class BitBank(BotBase):
             self.logger.exception("API request failed in cancel_and_fetch_position.")
             raise e
 
-
     async def _cancel_order(self, order_id: int) -> any:
         """
         単品の注文をキャンセルします
@@ -296,7 +361,6 @@ class BitBank(BotBase):
                 raise e
         except RequestException as e:
             raise e
-
 
     async def _cancel_any_orders(self, order_ids: list) -> any:
         """
@@ -313,7 +377,6 @@ class BitBank(BotBase):
         except RequestException as e:
             raise e
 
-
     async def cancel_all_orders(self):
         """
         全ての注文をキャンセルします
@@ -328,7 +391,6 @@ class BitBank(BotBase):
         except Exception as e:
             self.logger.exception("API request failed in cancel_all_orders.")
             raise e
-
 
     async def exchange_status(self) -> dict:
         """
