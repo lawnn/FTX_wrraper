@@ -38,10 +38,10 @@ class Notify(Log):
                     raise e
 
     # config.json内の[discordWebhook]で指定されたDiscordのWebHookへの通知
-    async def discordNotify(self, message, fileName=None):
+    async def discordNotify(self, message, file_path=None):
         payload = {"content": " " + message + " "}
         async with aiohttp.ClientSession() as session:
-            if fileName is None:
+            if file_path is None:
                 try:
                     await session.post(self.discordWebhook, data=payload)
                     self.log_info(message)
@@ -50,8 +50,10 @@ class Notify(Log):
                     raise e
             else:
                 try:
-                    files = {"imageFile": open(fileName, "rb")}
-                    await session.post(self.discordWebhook, data=payload, files=files)
+                    with open(file_path, 'rb') as f:
+                        data = aiohttp.FormData()
+                        data.add_field('file', f, filename='image.png', content_type='image/png')
+                        await session.post(self.discordWebhook, data=data)
                 except Exception as e:
                     self.log_error(e)
                     raise e
