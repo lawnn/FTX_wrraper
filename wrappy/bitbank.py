@@ -45,10 +45,10 @@ class BitBank(BotBase):
         await self.cancel_all_orders()
         await asyncio.sleep(5)
         position = await self.fetch_my_positions(self.symbol)
-        if float(position['long']) >= 0.0001:
+        if position['long'] >= 0.0001:
             self.log_info(f"Liquidating Current Long Position {position['long']} lot.")
             await self.liquidate_market_order('sell', position['long'])
-        if float(position['short']) >= 0.0001:
+        if position['short'] >= 0.0001:
             self.log_info(f"Liquidating Current Short Position {position['short']} lot.")
             await self.liquidate_market_order('buy', position['short'])
         self.log_debug("_cancel_and_liquidate end.")
@@ -322,8 +322,8 @@ class BitBank(BotBase):
                 else:
                     short_pos = pos['positions'][i]['open_amount']
         return {
-            'long': long_pos,
-            'short': short_pos
+            'long': Decimal(long_pos),
+            'short': Decimal(short_pos)
             }
 
     async def cancel_and_fetch_position(self) -> float:
